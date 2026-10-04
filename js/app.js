@@ -246,7 +246,8 @@ $('#q').oninput=()=>{const v=$('#q').value.trim();if(v)search(v.toLowerCase());e
 
 /* PDF IMPORT / ANNOTATE / EXPORT + PAGE MANAGEMENT */
 let PL=null,bgErr=false;const PD={},BG={},bgo=[];
-const pdfLib=()=>PL||(PL=import('./js/lib/pdf.min.js').then(m=>{m.GlobalWorkerOptions.workerSrc='./js/lib/pdf.worker.min.js';return m}));
+const AU=p=>new URL(p,document.baseURI).href;
+const pdfLib=()=>PL||(PL=import(AU('js/lib/pdf.min.js')).then(m=>{m.GlobalWorkerOptions.workerSrc=AU('js/lib/pdf.worker.min.js');return m}));
 const idb=()=>new Promise((ok,no)=>{const r=indexedDB.open('aura',1);r.onupgradeneeded=()=>r.result.createObjectStore('pdf');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 const idbPut=async(k,v)=>{const d=await idb();return new Promise((ok,no)=>{const t=d.transaction('pdf','readwrite');t.objectStore('pdf').put(v,k);t.oncomplete=ok;t.onerror=()=>no(t.error)})};
 const idbGet=async k=>{const d=await idb();return new Promise((ok,no)=>{const r=d.transaction('pdf').objectStore('pdf').get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})};
