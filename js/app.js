@@ -11,7 +11,7 @@ function save(){clearTimeout(saveT);saveT=setTimeout(()=>{if(noSave)return;try{l
 function theme(){document.documentElement.dataset.theme=db.theme}
 const pg=()=>nb.pages[pi],pgObj=()=>({id:uid(),tpl:'ruled',strokes:[]});
 /* HOME */
-function home(){$('#home').classList.add('show');$('#ed').classList.remove('show');const h=new Date().getHours();$('#greet').textContent=h<12?'Good morning.':h<18?'Good afternoon.':'Good evening.';
+function home(){const q0=$('#q').value.trim();if(q0){$('#home').classList.add('show');$('#ed').classList.remove('show');return search(q0.toLowerCase())}$('#home').classList.add('show');$('#ed').classList.remove('show');const h=new Date().getHours();$('#greet').textContent=h<12?'Good morning.':h<18?'Good afternoon.':'Good evening.';
  const l=$('#list');l.innerHTML='';
  if(!db.nbs.length){l.innerHTML='<div class="empty"><b>No notebooks yet</b>Your workspace is ready. Create your first notebook.</div>';return}
  const g=document.createElement('div');g.className='grid';
@@ -76,7 +76,7 @@ let rq=0;function draw(){cancelAnimationFrame(rq);rq=requestAnimationFrame(()=>{
  ctx.setTransform(d*S,0,0,d*S,d*ox,-d*sy);INS.forEach(n=>{if(n.on)n.d()});drawSel();drawOS();
  if(eraseAt){ctx.strokeStyle='#a78bfa';ctx.lineWidth=1.5/S;ctx.beginPath();ctx.arc(eraseAt[0],eraseAt[1],14,0,7);ctx.stroke()}
  ctx.setTransform(d,0,0,d,0,0);ctx.fillStyle=getComputedStyle(document.body).getPropertyValue('--t2');ctx.font='13px system-ui';ctx.textAlign='center';ctx.fillText(sy-maxY()>80?'Release to add a page':'Keep scrolling to add a page',cv.clientWidth/2,(pTop(nb.pages.length)-GAP+40)*S-sy);ctx.textAlign='left';
- const c=curPg();$('#pn').textContent=`Page ${c+1} of ${nb.pages.length}`;if($('#tp').value!=nb.pages[c].tpl)$('#tp').value=nb.pages[c].tpl;
+ const c=curPg();$('#pn').textContent=`Page ${c+1} of ${nb.pages.length}`;$('#bm').classList.toggle('on',!!nb.pages[c].bm);if($('#tp').value!=nb.pages[c].tpl)$('#tp').value=nb.pages[c].tpl;
  $('#rinfo').textContent=ruler.on?`Ruler ${Math.round(((ruler.a*180/Math.PI)%360+360)%360)}°`:''})}
 function drawRuler(){const r=ruler;ctx.save();ctx.translate(r.x,r.y);ctx.rotate(r.a);ctx.globalAlpha=.88;ctx.fillStyle='#2a2833';ctx.strokeStyle='#a78bfa';ctx.lineWidth=1.5;ctx.beginPath();ctx.rect(0,0,r.len,56);ctx.fill();ctx.stroke();
  ctx.strokeStyle='#cfcbe0';ctx.fillStyle='#cfcbe0';ctx.font='10px system-ui';ctx.beginPath();
@@ -213,5 +213,32 @@ $('#imf').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
   im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);
    const i=curPg(),w=Math.min(400,c.width),h=w*c.height/c.width,g=nb.pages[i];snap(i);const m={id:uid(),x:(PW-w)/2,y:Math.max(10,(sy+cv.clientHeight/2)/S-pTop(i)-h/2),w,h,src:c.toDataURL('image/jpeg',.75)};(g.images||(g.images=[])).push(m);isel={m,i};selUI();save();draw()};
   im.src=r.result};r.readAsDataURL(f)};
+
+/* TAGS + BOOKMARKS + SEARCH + PAGE PANEL */
+let pf='';
+const pnl=document.createElement('div');pnl.style.cssText='position:fixed;top:0;right:0;bottom:0;width:min(360px,92vw);background:var(--sf);border-left:1px solid var(--bd);z-index:8;display:none;flex-direction:column;padding:12px;gap:8px;overflow:hidden;padding-top:max(12px,env(safe-area-inset-top))';document.body.appendChild(pnl);
+function goPage(i){clampV();sy=Math.min(maxY(),(pTop(i)-12)*S);draw()}
+function editPage(i){const p=nb.pages[i],t=prompt('Page title',p.title||'');if(t===null)return;const g=prompt('Tags, comma separated (e.g. EXAM, FORMULA, REVISION)',(p.tags||[]).join(', '));p.title=t.trim();if(g!==null)p.tags=[...new Set(g.split(',').map(x=>x.trim().replace(/^#/,'').toUpperCase().replace(/[^A-Z0-9_-]/g,'')).filter(Boolean))];save();renderPnl()}
+function renderPnl(){const tags=[...new Set(nb.pages.flatMap(p=>p.tags||[]))].sort();
+ pnl.innerHTML=`<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Pages</b><button id="pcl">Close</button></div><select id="pfs"><option value="">All pages</option><option value="*bm">Bookmarked</option>${tags.map(t=>`<option value="${t}">#${t}</option>`).join('')}</select><div id="pls" style="overflow:auto;display:flex;flex-direction:column;gap:6px"></div>`;
+ const fs=pnl.querySelector('#pfs'),L=pnl.querySelector('#pls');fs.value=pf;fs.onchange=()=>{pf=fs.value;renderPnl()};pnl.querySelector('#pcl').onclick=()=>pnl.style.display='none';let n=0;
+ nb.pages.forEach((p,i)=>{if(pf=='*bm'?!p.bm:pf&&!(p.tags||[]).includes(pf))return;
+  const r=document.createElement('div');r.style.cssText='display:flex;gap:6px;align-items:stretch';
+  if(n++<80){const c=document.createElement('canvas');c.width=60;c.height=85;c.style.cssText='border:1px solid var(--bd);border-radius:4px;flex-shrink:0';const x=c.getContext('2d');x.scale(60/PW,85/PH);drawPage(x,p);r.appendChild(c)}
+  const b=document.createElement('button');b.style.cssText='flex:1;text-align:left';b.textContent=`${i+1}. ${p.title||'Untitled page'}${(p.tags||[]).length?'  '+p.tags.map(t=>'#'+t).join(' '):''}`;b.onclick=()=>{goPage(i);pnl.style.display='none'};
+  const s=document.createElement('button');s.textContent=p.bm?'★':'☆';s.setAttribute('aria-label','Toggle bookmark');s.onclick=()=>{p.bm=!p.bm;save();renderPnl();draw()};
+  const e=document.createElement('button');e.textContent='Edit';e.onclick=()=>editPage(i);r.append(b,s,e);L.appendChild(r)});
+ if(!L.children.length)L.innerHTML='<div class="empty" style="margin:0"><b>Nothing here</b>No pages match this filter.</div>'}
+$('#pgs').onclick=()=>{pf='';renderPnl();pnl.style.display='flex'};
+$('#tg').onclick=()=>editPage(curPg());
+$('#bm').onclick=()=>{const p=nb.pages[curPg()];p.bm=!p.bm;save();draw();toast(p.bm?'Page bookmarked.':'Bookmark removed.',1200)};
+function search(q){const l=$('#list');l.innerHTML='';const R=[],tq=q.replace(/^#/,'');
+ db.nbs.forEach(n=>{if(n.name.toLowerCase().includes(q))R.push([n,0,'Notebook name']);
+  n.pages.forEach((p,i)=>{const tx=(p.texts||[]).map(t=>t.txt).concat((p.tables||[]).flatMap(t=>t.cells.flat())).join(' ').toLowerCase();let w=null;
+   if((p.title||'').toLowerCase().includes(q))w='Page title';else if((p.tags||[]).some(t=>t.toLowerCase().includes(tq)))w='Tag';else if(tx.includes(q))w='Typed text';
+   if(w)R.push([n,i,w,p])})});
+ if(!R.length){l.innerHTML='<div class="empty"><b>No matches</b>Search covers notebook names, page titles, tags and typed text. Handwriting is not searchable.</div>';return}
+ R.forEach(([n,i,w,p])=>{const c=document.createElement('div');c.className='card';c.style.cssText='min-height:0;margin-top:10px';c.innerHTML='<div><b></b><br><small></small></div>';c.querySelector('b').textContent=n.name+(w=='Notebook name'?'':' · page '+(i+1)+(p&&p.title?' · '+p.title:''));c.querySelector('small').textContent=w;c.onclick=()=>{open(n);goPage(i)};l.appendChild(c)})}
+$('#q').oninput=()=>{const v=$('#q').value.trim();if(v)search(v.toLowerCase());else home()};
 load();home();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
