@@ -1,3 +1,4 @@
+
 const $=s=>document.querySelector(s),PW=794,PH=1123,uid=()=>Math.random().toString(36).slice(2,9);
 const TL={pen:{a:1,w:1},pencil:{a:.6,w:.7},marker:{a:.95,w:2.5},highlighter:{a:.32,w:7}};
 const PAL=['#1a1a22','#ecebf1','#7c5cdb','#2563eb','#16a34a','#dc2626','#f59e0b'];
@@ -29,14 +30,14 @@ $('#rsf').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=
 function dl(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
 /* EDITOR */
 const GAP=24,SH=['line','rect','ellipse','triangle'];
-let z=1,ox=0,sy=0,S=1,lock=false,wt;
+let z=1,ox=0,sy=0,S=1,lock=false,wt,sel=null,gest=null,loop=null;
 const Sc=()=>Math.max(cv.clientWidth,1)/PW*z,pTop=i=>12+i*(PH+GAP),totH=()=>pTop(nb.pages.length)-GAP+80,maxY=()=>Math.max(0,totH()*Sc()-cv.clientHeight);
 function clampV(soft){S=Sc();const pw=PW*S,cw=cv.clientWidth;ox=pw<=cw+1?(cw-pw)/2:Math.max(cw-pw,Math.min(0,ox));sy=Math.max(0,Math.min(maxY()+(soft?160:0),sy))}
 const pageAt=y=>Math.max(0,Math.min(nb.pages.length-1,Math.floor((y-12+GAP/2)/(PH+GAP)))),curPg=()=>pageAt((sy+cv.clientHeight/2)/S);
 const W=(e,b=cv.getBoundingClientRect())=>[(e.clientX-b.left-ox)/S,(e.clientY-b.top+sy)/S];
 function open(n){nb=n;$('#home').classList.remove('show');$('#ed').classList.add('show');$('#nm').textContent=n.name;ruler.on=false;$('#rl').classList.remove('on');z=1;sy=0;hist=[];rdo=[];$('#pp').textContent='Paper: '+db.paper;setTool('pen');sizeCv()}
 function sizeCv(){const s=$('#stage'),d=devicePixelRatio||1;cv.width=s.clientWidth*d;cv.height=s.clientHeight*d;clampV();draw()}
-function setTool(t){tool=t;document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t==t));$('#cols').parentElement.style.opacity=t=='eraser'?.4:1;draw()}
+function setTool(t){tool=t;if(t!='lasso'&&sel){sel=null;selUI()}document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t==t));$('#cols').parentElement.style.opacity=t=='eraser'?.4:1;draw()}
 document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>setTool(b.dataset.t));
 $('#rl').onclick=()=>{ruler.on=!ruler.on;$('#rl').classList.toggle('on',ruler.on);if(ruler.on){ruler.len=Math.min(520,PW-80);ruler.x=(PW-ruler.len)/2;ruler.y=(sy+cv.clientHeight/2)/S;ruler.a=0}draw()};
 PAL.forEach(c=>{const b=document.createElement('button');b.className='sw'+(c==color?' on':'');b.style.background=c;b.setAttribute('aria-label','Colour '+c);b.onclick=()=>pick(c);$('#cols').appendChild(b)});
@@ -46,10 +47,10 @@ $('#cc').oninput=e=>pick(e.target.value);$('#sz').oninput=e=>size=+e.target.valu
 $('#nm').onclick=()=>{const v=prompt('Rename notebook',nb.name);if(v&&v.trim()){nb.name=v.trim();$('#nm').textContent=nb.name;save()}};
 $('#back').onclick=()=>{save();home()};$('#un').onclick=undo;$('#re').onclick=redo;$('#fit').onclick=()=>{z=1;draw()};
 function snap(i){hist.push({i,s:nb.pages[i].strokes.slice()});if(hist.length>200)hist.shift();rdo=[]}
-function undo(){const h=hist.pop();if(!h)return;rdo.push({i:h.i,s:nb.pages[h.i].strokes.slice()});nb.pages[h.i].strokes=h.s;save();draw()}
-function redo(){const h=rdo.pop();if(!h)return;hist.push({i:h.i,s:nb.pages[h.i].strokes.slice()});nb.pages[h.i].strokes=h.s;save();draw()}
+function undo(){sel=null;selUI();const h=hist.pop();if(!h)return;rdo.push({i:h.i,s:nb.pages[h.i].strokes.slice()});nb.pages[h.i].strokes=h.s;save();draw()}
+function redo(){sel=null;selUI();const h=rdo.pop();if(!h)return;hist.push({i:h.i,s:nb.pages[h.i].strokes.slice()});nb.pages[h.i].strokes=h.s;save();draw()}
 addEventListener('keydown',e=>{if(!$('#ed').classList.contains('show'))return;if((e.ctrlKey||e.metaKey)&&e.key=='z'){e.preventDefault();e.shiftKey?redo():undo()}});
-$('#dp').onclick=()=>{if(nb.pages.length<2)return toast('A notebook needs at least one page.');if(!confirm('Delete this page and its handwriting?'))return;nb.pages.splice(curPg(),1);hist=[];rdo=[];save();draw()};
+$('#dp').onclick=()=>{if(nb.pages.length<2)return toast('A notebook needs at least one page.');if(!confirm('Delete this page and its handwriting?'))return;nb.pages.splice(curPg(),1);sel=null;selUI();hist=[];rdo=[];save();draw()};
 $('#tp').onchange=e=>{nb.pages[curPg()].tpl=e.target.value;save();draw()};
 $('#pp').onclick=()=>{db.paper=db.paper=='light'?'dark':'light';$('#pp').textContent='Paper: '+db.paper;save();draw()};
 $('#ex').onclick=()=>{const c=document.createElement('canvas');c.width=PW*2;c.height=PH*2;const x=c.getContext('2d');x.scale(2,2);drawPage(x,nb.pages[curPg()]);c.toBlob(b=>{dl(b,nb.name+'-page'+(curPg()+1)+'.png');toast('Page exported as PNG.')})};
@@ -71,7 +72,7 @@ function stroke(c,s){const t=TL[s.t],p=s.p;c.save();c.globalAlpha=t.a;c.strokeSt
 let rq=0;function draw(){cancelAnimationFrame(rq);rq=requestAnimationFrame(()=>{if(!nb)return;clampV(true);const d=devicePixelRatio||1,ch=cv.clientHeight;
  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);
  nb.pages.forEach((p,i)=>{const t=pTop(i)*S-sy;if(t>ch||t+PH*S<0)return;ctx.setTransform(d*S,0,0,d*S,d*ox,d*t);ctx.save();ctx.shadowColor='rgba(0,0,0,.45)';ctx.shadowBlur=20;ctx.fillStyle='#000';ctx.fillRect(0,0,PW,PH);ctx.restore();ctx.save();ctx.beginPath();ctx.rect(0,0,PW,PH);ctx.clip();drawPage(ctx,p);ctx.restore()});
- ctx.setTransform(d*S,0,0,d*S,d*ox,-d*sy);if(ruler.on)drawRuler();
+ ctx.setTransform(d*S,0,0,d*S,d*ox,-d*sy);if(ruler.on)drawRuler();drawSel();
  if(eraseAt){ctx.strokeStyle='#a78bfa';ctx.lineWidth=1.5/S;ctx.beginPath();ctx.arc(eraseAt[0],eraseAt[1],14,0,7);ctx.stroke()}
  ctx.setTransform(d,0,0,d,0,0);ctx.fillStyle=getComputedStyle(document.body).getPropertyValue('--t2');ctx.font='13px system-ui';ctx.textAlign='center';ctx.fillText(sy-maxY()>80?'Release to add a page':'Keep scrolling to add a page',cv.clientWidth/2,(pTop(nb.pages.length)-GAP+40)*S-sy);ctx.textAlign='left';
  const c=curPg();$('#pn').textContent=`Page ${c+1} of ${nb.pages.length}`;if($('#tp').value!=nb.pages[c].tpl)$('#tp').value=nb.pages[c].tpl;
@@ -93,6 +94,7 @@ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);
   else if(touches.size==2){const f=fing();if(rmode)rmode={t:'rot',a0:f.ang,ra:ruler.a};else{const b=cv.getBoundingClientRect();pinch={...f,z,w:[(f.cx-b.left-ox)/S,(f.cy-b.top+sy)/S]}}}
   return}
  const p=W(e),i=pageAt(p[1]);
+ if(tool=='lasso'){if(sel){const h=selHit(p);if(h){startG(h,p);return}}sel=null;selUI();loop={i,p:[[p[0],p[1]]]};draw();return}
  if(tool=='eraser'){snap(i);eraseAt=p;erase(p);return}
  const sn=nearEdge(p),q=sn?proj(p):p,l=[q[0],q[1]-pTop(i),pr(e)],sh=SH.includes(tool);
  live={t:sh?'pen':tool,c:color,w:size,p:[l],sn,i,o:nb.pages[i],sh:sh?tool:0,a:l};draw()});
@@ -104,10 +106,14 @@ cv.addEventListener('pointermove',e=>{
    else if(pinch){const b=cv.getBoundingClientRect();z=Math.max(1,Math.min(2.5,pinch.z*f.d/pinch.d));S=Sc();sy=pinch.w[1]*S-(f.cy-b.top);ox=f.cx-b.left-pinch.w[0]*S}}
   draw();return}
  const p=W(e);
+ if(gest){applyG(p);draw();return}
+ if(loop){loop.p.push([p[0],p[1]]);draw();return}
  if(tool=='eraser'&&eraseAt){eraseAt=p;erase(p);return}
  if(live){const T=live.i;if(live.sh)live.p=sp(live.sh,live.a,[p[0],p[1]-pTop(T)]);else(e.getCoalescedEvents?e.getCoalescedEvents():[e]).forEach(ev=>{const w=W(ev),q=live.sn?proj(w):w;live.p.push([q[0],q[1]-pTop(T),pr(ev)])});draw()}});
 function end(e){
  if(e.pointerType=='touch'){touches.delete(e.pointerId);if(touches.size==1){lock=true;pinch=null;if(rmode&&rmode.t=='rot')rmode=null}if(!touches.size){lock=false;rmode=null;pinch=null;settle()}return}
+ if(gest){gest=null;save();draw();return}
+ if(loop){endLoop();return}
  if(eraseAt){eraseAt=null;save();draw()}
  if(live){const s=live;live=null;snap(s.i);nb.pages[s.i].strokes.push({t:s.t,c:s.c,w:s.w,p:s.p});save();draw()}}
 cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
@@ -116,5 +122,24 @@ function erase(p){const i=pageAt(p[1]),q=[p[0],p[1]-pTop(i)],pg_=nb.pages[i];pg_
 function hit(s,p,r){const q=s.p;if(q.length==1)return Math.hypot(q[0][0]-p[0],q[0][1]-p[1])<r;
  for(let i=1;i<q.length;i++){const[x1,y1]=q[i-1],[x2,y2]=q[i],dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p[0]-x1)*dx+(p[1]-y1)*dy)/l));if(Math.hypot(x1+t*dx-p[0],y1+t*dy-p[1])<r)return true}return false}
 addEventListener('resize',()=>{if($('#ed').classList.contains('show'))sizeCv()});
+
+/* LASSO */
+function selUI(){$('#selb').style.display=sel?'flex':'none'}
+function selBox(){let x1=1e9,y1=1e9,x2=-1e9,y2=-1e9;sel.l.forEach(s=>s.p.forEach(q=>{x1=Math.min(x1,q[0]);x2=Math.max(x2,q[0]);y1=Math.min(y1,q[1]);y2=Math.max(y2,q[1])}));const o=pTop(sel.i),m=6;return{x1:x1-m,x2:x2+m,y1:y1+o-m,y2:y2+o+m}}
+function selHit(p){const b=selBox(),r=26/S,hx=(b.x1+b.x2)/2,hy=b.y1-30/S;if(Math.hypot(p[0]-hx,p[1]-hy)<r)return'r';if(Math.hypot(p[0]-b.x2,p[1]-b.y2)<r)return's';return p[0]>b.x1&&p[0]<b.x2&&p[1]>b.y1&&p[1]<b.y2?'m':null}
+function cloneSel(){const g=nb.pages[sel.i],c=sel.l.map(s=>({...s,p:s.p.map(q=>q.slice())}));g.strokes=g.strokes.map(s=>{const k=sel.l.indexOf(s);return k<0?s:c[k]});sel.l=c}
+function startG(h,p){snap(sel.i);cloneSel();const b=selBox(),o=pTop(sel.i);gest={h,s:[p[0],p[1]-o],c:[(b.x1+b.x2)/2,(b.y1+b.y2)/2-o],o:sel.l.map(s=>({p:s.p.map(q=>q.slice()),w:s.w}))}}
+function applyG(p){const o=pTop(sel.i),l=[p[0],p[1]-o],{h,s,c}=gest;let f=1,a=0;
+ if(h=='s')f=Math.max(.1,Math.hypot(l[0]-c[0],l[1]-c[1])/(Math.hypot(s[0]-c[0],s[1]-c[1])||1));
+ if(h=='r')a=Math.atan2(l[1]-c[1],l[0]-c[0])-Math.atan2(s[1]-c[1],s[0]-c[0]);
+ const co=Math.cos(a),si=Math.sin(a);
+ sel.l.forEach((st,k)=>{const g=gest.o[k];st.w=g.w*f;st.p=g.p.map(q=>{if(h=='m')return[q[0]+l[0]-s[0],q[1]+l[1]-s[1],q[2]];const x=(q[0]-c[0])*f,y=(q[1]-c[1])*f;return[c[0]+x*co-y*si,c[1]+x*si+y*co,q[2]]})})}
+function pip(q,P){let r=false;for(let i=0,j=P.length-1;i<P.length;j=i++){if((P[i][1]>q[1])!=(P[j][1]>q[1])&&q[0]<(P[j][0]-P[i][0])*(q[1]-P[i][1])/(P[j][1]-P[i][1])+P[i][0])r=!r}return r}
+function endLoop(){const o=pTop(loop.i),P=loop.p.map(q=>[q[0],q[1]-o]),l=nb.pages[loop.i].strokes.filter(s=>s.p.filter(q=>pip(q,P)).length>=s.p.length/2);sel=l.length&&P.length>2?{i:loop.i,l}:null;loop=null;selUI();if(!sel)toast('Draw a loop around the handwriting you want to select.',2500);draw()}
+function drawSel(){ctx.save();ctx.strokeStyle=ctx.fillStyle='#a78bfa';ctx.lineWidth=1.5/S;ctx.setLineDash([6/S,4/S]);
+ if(loop){ctx.beginPath();loop.p.forEach((q,k)=>k?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.stroke()}
+ if(sel){const b=selBox(),r=9/S,hx=(b.x1+b.x2)/2,hy=b.y1-30/S;ctx.strokeRect(b.x1,b.y1,b.x2-b.x1,b.y2-b.y1);ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(hx,b.y1);ctx.lineTo(hx,hy);ctx.stroke();[[hx,hy],[b.x2,b.y2]].forEach(q=>{ctx.beginPath();ctx.arc(q[0],q[1],r,0,7);ctx.fill()})}ctx.restore()}
+$('#sdup').onclick=()=>{if(!sel)return;snap(sel.i);const g=nb.pages[sel.i],c=sel.l.map(s=>({...s,p:s.p.map(q=>[q[0]+24,q[1]+24,q[2]])}));g.strokes=g.strokes.concat(c);sel.l=c;save();draw()};
+$('#sdel').onclick=()=>{if(!sel)return;snap(sel.i);const g=nb.pages[sel.i];g.strokes=g.strokes.filter(s=>!sel.l.includes(s));sel=null;selUI();save();draw()};
 load();home();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
