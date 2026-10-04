@@ -29,10 +29,10 @@ function home(){const q0=$('#q').value.trim();if(q0){$('#home').classList.add('s
   (n.pages.some(p=>p.bg)?g2:g).appendChild(c)});l.appendChild(g);if(g2.children.length){const lb=document.createElement('div');lb.className='lab';lb.textContent='DOCUMENTS';l.appendChild(lb);l.appendChild(g2)}}
 $('#newNb').onclick=()=>{const v=prompt('Notebook name','New notebook');if(!v)return;const n={id:uid(),name:v.trim()||'Untitled',pages:[pgObj()]};db.nbs.unshift(n);save();open(n)};
 $('#thm').onclick=()=>{db.theme=db.theme=='dark'?'light':'dark';theme();save()};
-$('#bk').onclick=()=>{dl(new Blob([JSON.stringify(db)],{type:'application/json'}),'aura-notes-backup.json');toast('Backup downloaded.')};
+$('#bk').onclick=()=>{dl(new Blob([JSON.stringify(db)],{type:'application/json'}),'aura-notes-backup.json')};
 $('#rs').onclick=()=>$('#rsf').click();
 $('#rsf').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!Array.isArray(d.nbs))throw 0;if(!confirm('Replace current notebooks with this backup?'))return;db=d;noSave=false;theme();save();home();toast('Backup restored.')}catch(_){toast('That file is not a valid Aura Notes backup. Nothing was changed.')}e.target.value=''};
-function dl(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
+function rawDl(b,n){const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000)}
 /* EDITOR */
 const GAP=24,SH=['line','rect','ellipse','triangle'];
 let z=1,ox=0,sy=0,S=1,lock=false,wt,sel=null,gest=null,loop=null;
@@ -59,7 +59,7 @@ addEventListener('keydown',e=>{if(!$('#ed').classList.contains('show'))return;if
 $('#dp').onclick=()=>{if(nb.pages.length<2)return toast('A notebook needs at least one page.');if(!confirm('Delete this page and its handwriting?'))return;nb.pages.splice(curPg(),1);sel=tsel=isel=null;selUI();hist=[];rdo=[];save();draw()};
 $('#tp').onchange=e=>{nb.pages[curPg()].tpl=e.target.value;save();draw()};
 $('#pp').onclick=()=>{db.paper=db.paper=='light'?'dark':'light';$('#pp').textContent='Paper: '+db.paper;save();draw()};
-$('#ex').onclick=()=>{const c=document.createElement('canvas');c.width=PW*2;c.height=PH*2;const x=c.getContext('2d');x.scale(2,2);drawPage(x,nb.pages[curPg()]);c.toBlob(b=>{dl(b,nb.name+'-page'+(curPg()+1)+'.png');toast('Page exported as PNG.')})};
+$('#ex').onclick=()=>{const c=document.createElement('canvas');c.width=PW*2;c.height=PH*2;const x=c.getContext('2d');x.scale(2,2);drawPage(x,nb.pages[curPg()]);c.toBlob(b=>{dl(b,nb.name+'-page'+(curPg()+1)+'.png')})};
 function addPage(){const l=nb.pages[nb.pages.length-1];nb.pages.push({...pgObj(),tpl:l.tpl});hist=[];rdo=[];save();clampV();sy=Math.min(maxY(),(pTop(nb.pages.length-1)-12)*S);draw();toast('Page added.',1500)}
 function settle(){const m=maxY();if(sy>m+80)addPage();else if(sy>m){sy=m;draw()}}
 /* RENDER */
@@ -290,7 +290,7 @@ function makePdf(P){const enc=new TextEncoder(),ch=[],off=[];let len=0;const put
 async function exportPdf(){toast('Building PDF…',60000);
  try{const J=[];for(let i=0;i<nb.pages.length;i++){const p=nb.pages[i],c=document.createElement('canvas');c.width=PW*2;c.height=PH*2;const x=c.getContext('2d');x.scale(2,2);const bgc=p.bg?await bgCanvas(p.bg.id,p.bg.n):null;drawPage(x,p,{bgc,nobg:!bgc});
   J.push({w:c.width,h:c.height,b:Uint8Array.from(atob(c.toDataURL('image/jpeg',.88).split(',')[1]),q=>q.charCodeAt(0))})}
-  dl(makePdf(J),nb.name+'.pdf');toast('PDF exported ('+J.length+' pages).',3000)}
+  dl(makePdf(J),nb.name+'.pdf')}
  catch(err){toast('PDF export failed ('+(err&&err.message||'error')+'). Your notes are safe and unchanged.',8000)}}
 $('#xp').onclick=exportPdf;
 const pgReset=()=>{hist=[];rdo=[];sel=tsel=isel=null;selUI();save();renderPnl();draw()};
@@ -372,6 +372,21 @@ let vx=0,vy=0,lastT=0,scrolling=false,fl=null;
 function startFling(){if(performance.now()-lastT>90)return;const c=v=>Math.max(-5,Math.min(5,v));if(Math.hypot(vx,vy)<.06)return;fl={vx:c(vx),vy:c(vy),t:performance.now()};requestAnimationFrame(flStep)}
 function flStep(t){if(!fl)return;const dt=Math.min(40,Math.max(1,t-fl.t));fl.t=t;sy+=fl.vy*dt;if(z>1)ox+=fl.vx*dt;const k=Math.exp(-dt/320);fl.vy*=k;fl.vx*=k;const m=maxY();let stop=false;
  if(sy<=0){sy=0;stop=true}if(sy>=m){sy=m;stop=true}if(Math.hypot(fl.vx,fl.vy)<.02)stop=true;draw();if(stop)fl=null;else requestAnimationFrame(flStep)}
+
+/* EXPORT DIALOG: Download (saves to Downloads) + Share */
+const isNat=()=>!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()),CPl=()=>(window.Capacitor&&Capacitor.Plugins)||{};
+const b64=b=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]);r.onerror=()=>no(r.error||new Error('could not read the file'));r.readAsDataURL(b)});
+function canShare(){if(isNat())return!!(CPl().Share&&CPl().Filesystem);return typeof navigator.share=='function'}
+async function saveDl(b,n){if(isNat()){const P=CPl().AuraSave;if(!P)throw new Error('the save component is missing from this build');await P.save({name:n,mime:b.type||'application/octet-stream',data:await b64(b)});return'Saved to your Downloads folder as "'+n+'". Open the Files app, then Downloads, to find it.'}rawDl(b,n);return'Download started. Check your browser downloads.'}
+async function shareFile(b,n){if(isNat()){const w=await CPl().Filesystem.writeFile({path:n,data:await b64(b),directory:'CACHE'});await CPl().Share.share({title:n,files:[w.uri]});return'Share sheet closed.'}await navigator.share({files:[new File([b],n,{type:b.type})],title:n});return'Shared.'}
+function dl(b,n){n=n.replace(/[\\/:*?"<>|]/g,'_');$('#toast').classList.remove('show');
+ const o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+ const c=document.createElement('div');c.style.cssText='background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:20px;max-width:400px;width:100%;display:flex;flex-direction:column;gap:10px';
+ c.innerHTML='<b style="font-size:17px">Export</b><div class="pill" id="xn" style="white-space:normal"></div><div class="pill" id="xm" style="white-space:normal;color:var(--tx)"></div>';
+ c.querySelector('#xn').textContent=n+' · '+(b.size>=1048576?(b.size/1048576).toFixed(1)+' MB':Math.max(1,Math.round(b.size/1024))+' KB');
+ const msg=t=>c.querySelector('#xm').textContent=t,bt=(t,f,pri)=>{const x=document.createElement('button');x.textContent=t;if(pri)x.className='pri';x.onclick=async()=>{msg('Working...');try{msg(await f())}catch(e){const m=(e&&e.message)||String(e);msg(/cancel|abort/i.test(m)?'Cancelled.':'That did not work ('+m+'). Your notes are safe. Try the other option.')}};c.appendChild(x)};
+ bt('Download to device',()=>saveDl(b,n),1);if(canShare())bt('Share...',()=>shareFile(b,n));
+ const x=document.createElement('button');x.textContent='Close';x.onclick=()=>o.remove();c.appendChild(x);o.appendChild(c);document.body.appendChild(o)}
 
 init();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
