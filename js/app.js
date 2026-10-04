@@ -6,8 +6,13 @@ let db,noSave=false,nb=null,pi=0,tool='pen',color='#1a1a22',size=3,view={x:0,y:0
 let ruler={x:200,y:300,a:0,len:520,on:false},rmode=null,touches=new Map(),pinch=null,saveT;
 const cv=$('#cv'),ctx=cv.getContext('2d');
 function toast(m,ms=4000){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),ms)}
-function load(){let raw=null;try{raw=localStorage.getItem('aura');db=JSON.parse(raw||'null')}catch(e){try{localStorage.setItem('aura_backup',raw)}catch(_){}noSave=true;toast('Saved data could not be read. Your stored copy is untouched and autosave is paused. Use Restore with a backup.',9000)}db=db||{nbs:[],theme:'dark',paper:'light'};theme()}
-function save(){clearTimeout(saveT);saveT=setTimeout(()=>{if(noSave)return;try{localStorage.setItem('aura',JSON.stringify(db))}catch(e){toast('Could not save: device storage is full. Your notes are still open here. Tap Backup to export them now.',8000)}},300)}
+async function init(){let mig=false;
+ try{const d=await idb();db=await new Promise((ok,no)=>{const r=d.transaction('data').objectStore('data').get('db');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+  if(!db){const raw=localStorage.getItem('aura');if(raw){db=JSON.parse(raw);mig=true}}}
+ catch(e){noSave=true;toast('Saved data could not be read. Autosave is paused so nothing is overwritten. Use Restore with a backup.',9000)}
+ db=db||{nbs:[],theme:'dark',paper:'light'};theme();home();stor();if(mig){save();toast('Your notes were moved to larger storage.',3500)}}
+function save(){clearTimeout(saveT);saveT=setTimeout(async()=>{if(noSave)return;try{const d=await idb();await new Promise((ok,no)=>{const t=d.transaction('data','readwrite');t.objectStore('data').put(db,'db');t.oncomplete=ok;t.onerror=()=>no(t.error);t.onabort=()=>no(t.error)})}catch(e){toast('Could not save ('+(e&&e.message||'storage error')+'). Your notes are still open here. Tap Backup to export them now.',8000)}},300)}
+function stor(){if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(e=>{$('#su').textContent=`Storage used: ${(e.usage/1048576).toFixed(1)} MB of ${(e.quota/1048576).toFixed(0)} MB available`}).catch(()=>{})}
 function theme(){document.documentElement.dataset.theme=db.theme}
 const pg=()=>nb.pages[pi],pgObj=()=>({id:uid(),tpl:'ruled',strokes:[]});
 /* HOME */
@@ -20,7 +25,7 @@ function home(){const q0=$('#q').value.trim();if(q0){$('#home').classList.add('s
   c.onclick=e=>{const a=e.target.dataset.a;if(!a)return open(n);
    if(a=='ren'){const v=prompt('Rename notebook',n.name);if(v&&v.trim()){n.name=v.trim();save();home()}}
    if(a=='dup'){const d=JSON.parse(JSON.stringify(n));d.id=uid();d.name+=' copy';d.pages.forEach(p=>p.id=uid());db.nbs.push(d);save();home()}
-   if(a=='del'&&confirm(`Delete "${n.name}" and all its pages? This cannot be undone.`)){db.nbs=db.nbs.filter(x=>x!==n);save();home()}};
+   if(a=='del'&&confirm(`Delete "${n.name}" and all its pages? This cannot be undone.`)){db.nbs=db.nbs.filter(x=>x!==n);save();home();gcPdf()}};
   g.appendChild(c)});l.appendChild(g)}
 $('#newNb').onclick=()=>{const v=prompt('Notebook name','New notebook');if(!v)return;const n={id:uid(),name:v.trim()||'Untitled',pages:[pgObj()]};db.nbs.unshift(n);save();open(n)};
 $('#thm').onclick=()=>{db.theme=db.theme=='dark'?'light':'dark';theme();save()};
@@ -37,15 +42,15 @@ const pageAt=y=>Math.max(0,Math.min(nb.pages.length-1,Math.floor((y-12+GAP/2)/(P
 const W=(e,b=cv.getBoundingClientRect())=>[(e.clientX-b.left-ox)/S,(e.clientY-b.top+sy)/S];
 function open(n){nb=n;$('#home').classList.remove('show');$('#ed').classList.add('show');$('#nm').textContent=n.name;INS.forEach(n=>n.on=false);['#rl','#pr','#sq'].forEach(q=>$(q).classList.remove('on'));z=1;sy=0;hist=[];rdo=[];$('#pp').textContent='Paper: '+db.paper;setTool('pen');sizeCv()}
 function sizeCv(){const s=$('#stage'),d=devicePixelRatio||1;cv.width=s.clientWidth*d;cv.height=s.clientHeight*d;clampV();draw()}
-function setTool(t){prevT=tool;tool=t;if(t!='lasso')sel=null;if(t!='table')tsel=null;if(t!='image')isel=null;selUI();document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t==t));$('#cols').parentElement.style.opacity=t=='eraser'?.4:1;draw()}
+function setTool(t){prevT=tool;tool=t;if(t!='lasso')sel=null;if(t!='table')tsel=null;if(t!='image')isel=null;selUI();document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t==t));$('#cols').parentElement.style.opacity=(t=='eraser'||t=='area')?.4:1;draw()}
 document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>setTool(b.dataset.t));
 $('#rl').onclick=()=>{ruler.on=!ruler.on;$('#rl').classList.toggle('on',ruler.on);if(ruler.on){ruler.len=Math.min(520,PW-80);ruler.x=(PW-ruler.len)/2;ruler.y=(sy+cv.clientHeight/2)/S;ruler.a=0}draw()};
 PAL.forEach(c=>{const b=document.createElement('button');b.className='sw'+(c==color?' on':'');b.style.background=c;b.setAttribute('aria-label','Colour '+c);b.onclick=()=>pick(c);$('#cols').appendChild(b)});
 const rgb=s=>{const m=s.match(/\d+/g);return m?'#'+m.slice(0,3).map(x=>(+x).toString(16).padStart(2,'0')).join(''):s};
-function pick(c){color=c;document.querySelectorAll('.sw').forEach(s=>s.classList.toggle('on',rgb(s.style.background)==c));if(tool=='eraser')setTool('pen')}
+function pick(c){color=c;document.querySelectorAll('.sw').forEach(s=>s.classList.toggle('on',rgb(s.style.background)==c));if(tool=='eraser'||tool=='area')setTool('pen')}
 $('#cc').oninput=e=>pick(e.target.value);$('#sz').oninput=e=>size=+e.target.value;
 $('#nm').onclick=()=>{const v=prompt('Rename notebook',nb.name);if(v&&v.trim()){nb.name=v.trim();$('#nm').textContent=nb.name;save()}};
-$('#back').onclick=()=>{save();home()};$('#un').onclick=undo;$('#re').onclick=redo;$('#fit').onclick=()=>{z=1;draw()};
+$('#back').onclick=()=>{save();home();stor()};$('#un').onclick=undo;$('#re').onclick=redo;$('#fit').onclick=()=>{z=1;draw()};
 const st=i=>({i,s:nb.pages[i].strokes.slice(),t:(nb.pages[i].texts||[]).map(x=>({...x})),b:(nb.pages[i].tables||[]).map(x=>JSON.parse(JSON.stringify(x))),m:(nb.pages[i].images||[]).map(x=>({...x}))}),rs=h=>{const g=nb.pages[h.i];g.strokes=h.s;g.texts=h.t;g.tables=h.b;g.images=h.m};
 function snap(i){hist.push(st(i));if(hist.length>200)hist.shift();rdo=[]}
 function undo(){sel=tsel=isel=null;selUI();const h=hist.pop();if(!h)return;rdo.push(st(h.i));rs(h);save();draw()}
@@ -64,8 +69,12 @@ function drawPage(c,pgo,o){const dk=db.paper=='dark';c.fillStyle=dk?'#1b1b21':'#
  if(t=='grid'){for(let y=24;y<PH;y+=24){c.moveTo(0,y);c.lineTo(PW,y)}for(let x=24;x<PW;x+=24){c.moveTo(x,0);c.lineTo(x,PH)}}
  c.stroke();
  if(t=='dot')for(let y=24;y<PH;y+=24)for(let x=24;x<PW;x+=24)c.fillRect(x-1,y-1,2,2);
+ if(t=='graph'){c.beginPath();for(let y=12;y<PH;y+=12){c.moveTo(0,y);c.lineTo(PW,y)}for(let x=12;x<PW;x+=12){c.moveTo(x,0);c.lineTo(x,PH)}c.lineWidth=.5;c.stroke();c.beginPath();for(let y=60;y<PH;y+=60){c.moveTo(0,y);c.lineTo(PW,y)}for(let x=60;x<PW;x+=60){c.moveTo(x,0);c.lineTo(x,PH)}c.lineWidth=1.2;c.stroke()}
+ if(t=='math'){c.beginPath();for(let y=24;y<PH;y+=24){c.moveTo(0,y);c.lineTo(PW,y)}for(let x=24;x<PW;x+=24){c.moveTo(x,0);c.lineTo(x,PH)}c.lineWidth=.6;c.stroke();c.strokeStyle=dk?'#9a98ad':'#55536a';c.beginPath();c.moveTo(0,552);c.lineTo(PW,552);c.moveTo(396,0);c.lineTo(396,PH);for(let k=-16;k<=16;k++){c.moveTo(396+k*24,546);c.lineTo(396+k*24,558)}for(let k=-23;k<=23;k++){c.moveTo(390,552+k*24);c.lineTo(402,552+k*24)}c.lineWidth=1.6;c.stroke()}
+ if(t=='cornell'){c.beginPath();c.moveTo(200,80);c.lineTo(200,PH-160);c.moveTo(0,80);c.lineTo(PW,80);c.moveTo(0,PH-160);c.lineTo(PW,PH-160);c.lineWidth=1.5;c.stroke()}
+ if(t=='check'){c.lineWidth=1.2;for(let y=80;y<PH-30;y+=44){c.strokeRect(40,y,18,18);c.beginPath();c.moveTo(76,y+22);c.lineTo(PW-40,y+22);c.stroke()}}
  drawObjs(c,pgo);pgo.strokes.forEach(s=>stroke(c,s));c.save();c.textBaseline='top';(pgo.texts||[]).forEach(t=>{c.font=t.sz+'px system-ui';c.fillStyle=t.c;t.txt.split('\n').forEach((l,k)=>c.fillText(l,t.x,t.y+k*t.sz*1.3))});c.restore();if(live&&live.o===pgo)stroke(c,live)}
-function stroke(c,s){const t=TL[s.t],p=s.p;c.save();c.globalAlpha=t.a;c.strokeStyle=c.fillStyle=s.c;c.lineCap=c.lineJoin='round';const w=s.w*t.w;
+function stroke(c,s){const t=TL[s.t],p=s.p;c.save();c.globalAlpha=t.a*(s.op==null?1:s.op);c.strokeStyle=c.fillStyle=s.c;c.lineCap=c.lineJoin='round';const w=s.w*t.w;
  if(p.length<2){c.beginPath();c.arc(p[0][0],p[0][1],w/2,0,7);c.fill()}
  else if(s.t=='pen'){for(let i=1;i<p.length;i++){c.lineWidth=w*(.45+p[i][2]*1.1);c.beginPath();c.moveTo(p[i-1][0],p[i-1][1]);c.lineTo(p[i][0],p[i][1]);c.stroke()}}
  else{c.lineWidth=w;c.beginPath();c.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length-1;i++){const m=[(p[i][0]+p[i+1][0])/2,(p[i][1]+p[i+1][1])/2];c.quadraticCurveTo(p[i][0],p[i][1],m[0],m[1])}c.lineTo(p[p.length-1][0],p[p.length-1][1]);c.stroke()}
@@ -99,9 +108,9 @@ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);
  if(tool=='image'){imgDown(p,i);return}
  if(tool=='text'){textDown(p,i);return}
  if(tool=='lasso'){if(sel){const h=selHit(p);if(h){startG(h,p);return}}sel=null;selUI();loop={i,p:[[p[0],p[1]]]};draw();return}
- if(tool=='eraser'){snap(i);eraseAt=p;erase(p);return}
+ if(tool=='eraser'||tool=='area'){snap(i);eraseAt=p;(tool=='area'?eraseArea:erase)(p);return}
  const sn=nearEdge(p),q=sn?proj(p,sn):p,l=[q[0],q[1]-pTop(i),pr(e)],sh=SH.includes(tool);
- live={t:sh?'pen':tool,c:color,w:size,p:[l],sn,i,o:nb.pages[i],sh:sh?tool:0,a:l};draw()});
+ live={t:sh?'pen':tool,c:color,w:size,op:opac,p:[l],sn,i,o:nb.pages[i],sh:sh?tool:0,a:l};draw()});
 cv.addEventListener('pointermove',e=>{
  if(e.pointerType=='touch'){const o=touches.get(e.pointerId);if(!o)return;const dx=e.clientX-o[0],dy=e.clientY-o[1];touches.set(e.pointerId,[e.clientX,e.clientY]);
   if(touches.size==1){if(rmode&&rmode.t=='mv'&&rmode.id==e.pointerId){const p=W(e);rmode.n.x=p[0]-rmode.o[0];rmode.n.y=p[1]-rmode.o[1]}else if(!lock&&!rmode){sy-=dy;if(z>1)ox+=dx}}
@@ -115,7 +124,7 @@ cv.addEventListener('pointermove',e=>{
  if(tg){textMove(p);return}
  if(gest){applyG(p);draw();return}
  if(loop){loop.p.push([p[0],p[1]]);draw();return}
- if(tool=='eraser'&&eraseAt){eraseAt=p;erase(p);return}
+ if((tool=='eraser'||tool=='area')&&eraseAt){eraseAt=p;(tool=='area'?eraseArea:erase)(p);return}
  if(live){const T=live.i;if(live.sh)live.p=sp(live.sh,live.a,[p[0],p[1]-pTop(T)]);else(e.getCoalescedEvents?e.getCoalescedEvents():[e]).forEach(ev=>{const w=W(ev),q=live.sn?proj(w,live.sn):w;live.p.push([q[0],q[1]-pTop(T),pr(ev)])});draw()}});
 function end(e){
  if(e.pointerType=='touch'){touches.delete(e.pointerId);if(touches.size==1){lock=true;pinch=null;if(rmode&&rmode.t=='rot')rmode=null}if(!touches.size){lock=false;rmode=null;pinch=null;settle()}return}
@@ -125,7 +134,7 @@ function end(e){
  if(gest){gest=null;save();draw();return}
  if(loop){endLoop();return}
  if(eraseAt){eraseAt=null;save();draw()}
- if(live){const s=live;live=null;snap(s.i);nb.pages[s.i].strokes.push({t:s.t,c:s.c,w:s.w,p:s.p});save();draw()}}
+ if(live){const s=live;live=null;snap(s.i);nb.pages[s.i].strokes.push({t:s.t,c:s.c,w:s.w,op:s.op,p:s.p});save();draw()}}
 cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
 cv.addEventListener('wheel',e=>{e.preventDefault();if(e.ctrlKey){const b=cv.getBoundingClientRect(),wx=(e.clientX-b.left-ox)/S,wy=(e.clientY-b.top+sy)/S;z=Math.max(1,Math.min(2.5,z*(e.deltaY<0?1.1:.91)));S=Sc();sy=wy*S-(e.clientY-b.top);ox=e.clientX-b.left-wx*S}else{sy+=e.deltaY;ox-=e.deltaX}draw();clearTimeout(wt);wt=setTimeout(settle,220)},{passive:false});
 function erase(p){const i=pageAt(p[1]),q=[p[0],p[1]-pTop(i)],pg_=nb.pages[i];pg_.strokes=pg_.strokes.filter(s=>!hit(s,q,14+s.w/2));draw()}
@@ -180,7 +189,7 @@ function textEnd(){const{t,i,m}=tg;tg=null;if(m){save();draw();return}
 let tb=null,ig=null,tsel=null,isel=null,prevT='pen';
 const IC={};function imgEl(m){let e=IC[m.id];if(!e){e=IC[m.id]=new Image();e.onload=()=>draw();e.src=m.src}return e}
 function drawObjs(c,pgo){(pgo.images||[]).forEach(m=>{const e=imgEl(m);if(e.complete&&e.naturalWidth)c.drawImage(e,m.x,m.y,m.w,m.h)});
- const dk=db.paper=='dark';(pgo.tables||[]).forEach(t=>{c.save();c.strokeStyle=dk?'#6f6c80':'#8a8799';c.fillStyle=dk?'#ecebf1':'#1a1a22';c.lineWidth=1.2;c.font='15px system-ui';c.textBaseline='middle';let y=t.y;t.rh.forEach((h,r)=>{let x=t.x;t.cw.forEach((w,k)=>{c.strokeRect(x,y,w,h);const v=t.cells[r][k];if(v)c.fillText(v,x+6,y+h/2,w-12);x+=w});y+=h});c.restore()})}
+ const dk=db.paper=='dark';(pgo.tables||[]).forEach(t=>{c.save();c.strokeStyle=dk?'#6f6c80':'#8a8799';c.fillStyle=dk?'#ecebf1':'#1a1a22';c.lineWidth=1.2;c.font='15px system-ui';c.textBaseline='middle';let y=t.y;t.rh.forEach((h,r)=>{let x=t.x;t.cw.forEach((w,k)=>{const fl=t.fill&&t.fill[r+','+k];if(fl){c.save();c.globalAlpha=.45;c.fillStyle=fl;c.fillRect(x,y,w,h);c.restore()}c.strokeRect(x,y,w,h);const v=t.cells[r][k];if(v)c.fillText(v,x+6,y+h/2,w-12);x+=w});y+=h});c.restore()})}
 function drawOS(){ctx.save();ctx.strokeStyle=ctx.fillStyle='#a78bfa';ctx.lineWidth=2/S;
  if(tsel){const t=tsel.t,o=pTop(tsel.i);let x=t.x,y=t.y+o;for(let k=0;k<tsel.c;k++)x+=t.cw[k];for(let k=0;k<tsel.r;k++)y+=t.rh[k];ctx.strokeRect(x,y,t.cw[tsel.c],t.rh[tsel.r])}
  if(isel){const m=isel.m,o=pTop(isel.i);ctx.strokeRect(m.x,m.y+o,m.w,m.h);ctx.beginPath();ctx.arc(m.x+m.w,m.y+m.h+o,9/S,0,7);ctx.fill()}ctx.restore()}
@@ -220,8 +229,8 @@ const pnl=document.createElement('div');pnl.style.cssText='position:fixed;top:0;
 function goPage(i){clampV();sy=Math.min(maxY(),(pTop(i)-12)*S);draw()}
 function editPage(i){const p=nb.pages[i],t=prompt('Page title',p.title||'');if(t===null)return;const g=prompt('Tags, comma separated (e.g. EXAM, FORMULA, REVISION)',(p.tags||[]).join(', '));p.title=t.trim();if(g!==null)p.tags=[...new Set(g.split(',').map(x=>x.trim().replace(/^#/,'').toUpperCase().replace(/[^A-Z0-9_-]/g,'')).filter(Boolean))];save();renderPnl()}
 function renderPnl(){const tags=[...new Set(nb.pages.flatMap(p=>p.tags||[]))].sort();
- pnl.innerHTML=`<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Pages</b><button id="pcl">Close</button></div><select id="pfs"><option value="">All pages</option><option value="*bm">Bookmarked</option>${tags.map(t=>`<option value="${t}">#${t}</option>`).join('')}</select><div id="pls" style="overflow:auto;display:flex;flex-direction:column;gap:6px"></div>`;
- const fs=pnl.querySelector('#pfs'),L=pnl.querySelector('#pls');fs.value=pf;fs.onchange=()=>{pf=fs.value;renderPnl()};pnl.querySelector('#pcl').onclick=()=>pnl.style.display='none';let n=0;
+ pnl.innerHTML=`<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Pages</b><button id="pex">Extract</button><button id="pmg">Merge</button><button id="pcl">Close</button></div><select id="pfs"><option value="">All pages</option><option value="*bm">Bookmarked</option>${tags.map(t=>`<option value="${t}">#${t}</option>`).join('')}</select><div id="pls" style="overflow:auto;display:flex;flex-direction:column;gap:6px"></div>`;
+ const fs=pnl.querySelector('#pfs'),L=pnl.querySelector('#pls');fs.value=pf;fs.onchange=()=>{pf=fs.value;renderPnl()};pnl.querySelector('#pcl').onclick=()=>pnl.style.display='none';pnl.querySelector('#pex').onclick=extractPages;pnl.querySelector('#pmg').onclick=mergeFrom;let n=0;
  nb.pages.forEach((p,i)=>{if(pf=='*bm'?!p.bm:pf&&!(p.tags||[]).includes(pf))return;
   const r=document.createElement('div');r.style.cssText='display:flex;gap:8px;align-items:flex-start';
   if(n++<80){const c=document.createElement('canvas');c.width=60;c.height=85;c.style.cssText='border:1px solid var(--bd);border-radius:4px;flex-shrink:0';const x=c.getContext('2d');x.scale(60/PW,85/PH);drawPage(x,p,{nobg:1});r.appendChild(c)}
@@ -248,7 +257,7 @@ $('#q').oninput=()=>{const v=$('#q').value.trim();if(v)search(v.toLowerCase());e
 let PL=null,bgErr=false;const PD={},BG={},bgo=[];
 const AU=p=>new URL(p,document.baseURI).href;
 const pdfLib=()=>PL||(PL=import(AU('js/lib/pdf.min.js')).then(m=>{m.GlobalWorkerOptions.workerSrc=AU('js/lib/pdf.worker.min.js');return m}));
-const idb=()=>new Promise((ok,no)=>{const r=indexedDB.open('aura',1);r.onupgradeneeded=()=>r.result.createObjectStore('pdf');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const idb=()=>new Promise((ok,no)=>{const r=indexedDB.open('aura',2);r.onupgradeneeded=()=>{['pdf','data'].forEach(n=>{if(!r.result.objectStoreNames.contains(n))r.result.createObjectStore(n)})};r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
 const idbPut=async(k,v)=>{const d=await idb();return new Promise((ok,no)=>{const t=d.transaction('pdf','readwrite');t.objectStore('pdf').put(v,k);t.oncomplete=ok;t.onerror=()=>no(t.error)})};
 const idbGet=async k=>{const d=await idb();return new Promise((ok,no)=>{const r=d.transaction('pdf').objectStore('pdf').get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})};
 const getDoc=id=>PD[id]||(PD[id]=(async()=>{const buf=await idbGet(id);if(!buf)throw new Error('the PDF file is missing from this device');const m=await pdfLib();return m.getDocument({data:new Uint8Array(buf.slice(0))}).promise})());
@@ -279,5 +288,27 @@ const pgReset=()=>{hist=[];rdo=[];sel=tsel=isel=null;selUI();save();renderPnl();
 function mvPage(i,d){const j=i+d;if(j<0||j>=nb.pages.length)return;[nb.pages[i],nb.pages[j]]=[nb.pages[j],nb.pages[i]];pgReset()}
 function dupPage(i){const c=JSON.parse(JSON.stringify(nb.pages[i]));c.id=uid();nb.pages.splice(i+1,0,c);pgReset()}
 function insPage(i){const p=nb.pages[i];nb.pages.splice(i+1,0,{...pgObj(),tpl:p.bg?'blank':p.tpl});pgReset()}
-load();home();
+/* STORAGE GC + TABLE/IMAGE UPGRADES + AREA ERASER + EXTRACT/MERGE */
+async function gcPdf(){try{const used=new Set(db.nbs.flatMap(n=>n.pages.filter(p=>p.bg).map(p=>p.bg.id))),d=await idb(),keys=await new Promise((ok,no)=>{const r=d.transaction('pdf').objectStore('pdf').getAllKeys();r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}),dead=keys.filter(k=>!used.has(k));
+ if(dead.length)await new Promise((ok,no)=>{const t=d.transaction('pdf','readwrite');dead.forEach(k=>t.objectStore('pdf').delete(k));t.oncomplete=ok;t.onerror=()=>no(t.error)})}catch(e){}}
+let opac=1;$('#op').oninput=e=>opac=e.target.value/100;
+function eraseArea(p){const i=pageAt(p[1]),q=[p[0],p[1]-pTop(i)],g=nb.pages[i],out=[],hitp=(a,s)=>Math.hypot(a[0]-q[0],a[1]-q[1])<14+s.w/2;
+ g.strokes.forEach(s=>{if(!s.p.some(a=>hitp(a,s))){out.push(s);return}let cur=[];s.p.forEach(a=>{if(hitp(a,s)){if(cur.length>1)out.push({...s,p:cur});cur=[]}else cur.push(a)});if(cur.length>1)out.push({...s,p:cur})});g.strokes=out;draw()}
+$('#tcw').onclick=tOp((t,s)=>{t.cw[s.c]+=20});$('#tcn').onclick=tOp((t,s)=>{t.cw[s.c]=Math.max(30,t.cw[s.c]-20)});
+$('#trt').onclick=tOp((t,s)=>{t.rh[s.r]+=10});$('#trs').onclick=tOp((t,s)=>{t.rh[s.r]=Math.max(24,t.rh[s.r]-10)});
+$('#tsh').onclick=tOp((t,s)=>{const C=['','#a78bfa','#9aa3b2','#f5b942','#34c38f'],k=s.r+','+s.c;t.fill=t.fill||{};const n=(C.indexOf(t.fill[k]||'')+1)%C.length;if(C[n])t.fill[k]=C[n];else delete t.fill[k]});
+$('#irt').onclick=()=>{if(!isel)return;const m=isel.m,e=imgEl(m);if(!(e.complete&&e.naturalWidth))return toast('Image is still loading.',1500);snap(isel.i);
+ const c=document.createElement('canvas');c.width=e.naturalHeight;c.height=e.naturalWidth;const x=c.getContext('2d');x.translate(c.width,0);x.rotate(Math.PI/2);x.drawImage(e,0,0);
+ m.src=c.toDataURL('image/jpeg',.8);m.id=uid();[m.w,m.h]=[m.h,m.w];save();draw()};
+$('#icr').onclick=()=>{if(!isel)return;const m=isel.m,e=imgEl(m);if(!(e.complete&&e.naturalWidth))return toast('Image is still loading.',1500);
+ const v=prompt('Crop edges in percent: left, top, right, bottom (e.g. 10,0,10,5)','0,0,0,0');if(v===null)return;const a=v.split(',').map(x=>Math.max(0,Math.min(45,+x||0)));if(a.length<4||a.every(x=>!x))return toast('Enter four numbers, for example 10,0,10,5.',3000);
+ snap(isel.i);const[l,t,r,b]=a.map(x=>x/100),W0=e.naturalWidth,H0=e.naturalHeight,sw=W0*(1-l-r),sh=H0*(1-t-b),c=document.createElement('canvas');c.width=Math.round(sw);c.height=Math.round(sh);c.getContext('2d').drawImage(e,W0*l,H0*t,sw,sh,0,0,c.width,c.height);
+ m.src=c.toDataURL('image/jpeg',.8);m.id=uid();m.x+=m.w*l;m.y+=m.h*t;m.w*=1-l-r;m.h*=1-t-b;save();draw()};
+function parseRange(v,n){const o=new Set();String(v).split(',').forEach(p=>{const m=p.trim().match(/^(\d+)(?:\s*-\s*(\d+))?$/);if(!m)return;const a=+m[1],b=+(m[2]||m[1]);for(let k=Math.min(a,b);k<=Math.max(a,b);k++)if(k>=1&&k<=n)o.add(k-1)});return[...o].sort((x,y)=>x-y)}
+function extractPages(){const v=prompt('Pages to extract into a new notebook (e.g. 1-3, 5)','1');if(v===null)return;const ix=parseRange(v,nb.pages.length);if(!ix.length)return toast('No valid page numbers. Nothing was changed.',3500);
+ const n={id:uid(),name:nb.name+' (extract)',pages:ix.map(i=>({...JSON.parse(JSON.stringify(nb.pages[i])),id:uid()}))};db.nbs.unshift(n);save();toast(ix.length+' page(s) copied to the new notebook "'+n.name+'".',4000)}
+function mergeFrom(){const o=db.nbs.filter(x=>x!==nb);if(!o.length)return toast('There is no other notebook to merge in.',3500);const v=prompt('Append pages from which notebook?\n'+o.map((x,k)=>(k+1)+'. '+x.name).join('\n'));const x=o[(+v)-1];if(!x)return;
+ nb.pages.push(...JSON.parse(JSON.stringify(x.pages)).map(p=>({...p,id:uid()})));pgReset();toast('Merged '+x.pages.length+' page(s) at the end.',3000)}
+
+init();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
