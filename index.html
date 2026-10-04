@@ -7,7 +7,7 @@
 <div id="home" class="sr show">
  <div class="brand"><svg width="30" height="30" viewBox="0 0 32 32" fill="none"><ellipse cx="16" cy="16" rx="14" ry="6" transform="rotate(-24 16 16)" stroke="#a78bfa" stroke-width="1.4" opacity=".7"/><path d="M8 25 16 6l8 19M11.5 18h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>AURA NOTES</div>
  <h1 id="greet">Good evening.</h1><p class="sub">Write without limits.</p>
- <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="pri" id="newNb">+ New notebook</button><button id="bk">Backup</button><button id="rs">Restore</button><button id="thm">Theme</button><input type="file" id="rsf" accept=".json" hidden></div>
+ <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="pri" id="newNb">+ New notebook</button><button id="bk">Backup</button><button id="rs">Restore</button><button id="thm">Theme</button><input type="file" id="rsf" accept=".json" hidden></div><input id="q" type="search" placeholder="Search notebooks, pages, typed text, tags" aria-label="Search" style="margin-top:18px;width:100%;max-width:520px;background:var(--el);border:1px solid var(--bd);border-radius:var(--r);padding:11px 14px;min-height:44px">
  <div class="lab">NOTEBOOKS</div><div id="list"></div>
 </div>
 <div id="ed" class="sr">
@@ -21,7 +21,7 @@
   <span class="pill">Size</span><input type="range" id="sz" min="1" max="20" value="3">
   <span id="rinfo" class="pill"></span><span id="tbb" style="display:none;gap:6px"><button id="tra">+ Row</button><button id="tca">+ Col</button><button id="trd">- Row</button><button id="tcd">- Col</button><button id="tdl">Delete table</button></span><span id="imb" style="display:none;gap:6px"><button id="idp">Duplicate</button><button id="idl">Delete</button></span><span id="selb" style="display:none;gap:6px"><button id="sdup">Duplicate</button><button id="sdel">Delete</button></span>
   <span class="sp"></span>
-  <span class="pill" id="pn"></span><button id="dp">Delete</button>
+  <button id="bm">Bookmark</button><button id="tg">Tags</button><button id="pgs">Pages</button><span class="pill" id="pn"></span><button id="dp">Delete</button>
   <select id="tp"><option value="blank">Blank</option><option value="ruled">Ruled</option><option value="grid">Grid</option><option value="dot">Dot grid</option></select>
   <button id="pp">Paper</button><button id="fit">Fit</button><button id="ex">Export PNG</button>
  </div>
