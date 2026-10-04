@@ -13,13 +13,13 @@
 <div id="ed" class="sr">
  <div class="bar">
   <button id="back">Back</button><button id="nm" style="max-width:180px;overflow:hidden;text-overflow:ellipsis"></button><span class="sp"></span>
-  <button data-t="pen">Pen</button><button data-t="pencil">Pencil</button><button data-t="marker">Marker</button><button data-t="highlighter">Highlighter</button><button data-t="eraser">Eraser</button><button data-t="lasso">Lasso</button><button data-t="text">Text</button><button id="rl">Ruler</button><button id="pr">Protractor</button><button id="sq">Set square</button><button data-t="line">Line</button><button data-t="rect">Rect</button><button data-t="ellipse">Ellipse</button><button data-t="triangle">Triangle</button>
+  <button data-t="pen">Pen</button><button data-t="pencil">Pencil</button><button data-t="marker">Marker</button><button data-t="highlighter">Highlighter</button><button data-t="eraser">Eraser</button><button data-t="lasso">Lasso</button><button data-t="text">Text</button><button data-t="table">Table</button><button data-t="image">Image</button><button id="rl">Ruler</button><button id="pr">Protractor</button><button id="sq">Set square</button><button data-t="line">Line</button><button data-t="rect">Rect</button><button data-t="ellipse">Ellipse</button><button data-t="triangle">Triangle</button>
   <span class="sp"></span><button id="un">Undo</button><button id="re">Redo</button>
  </div>
  <div class="opt" id="opt">
   <span id="cols" style="display:flex;gap:8px;align-items:center"></span><input type="color" id="cc" value="#1a1a22" aria-label="Custom colour">
   <span class="pill">Size</span><input type="range" id="sz" min="1" max="20" value="3">
-  <span id="rinfo" class="pill"></span><span id="selb" style="display:none;gap:6px"><button id="sdup">Duplicate</button><button id="sdel">Delete</button></span>
+  <span id="rinfo" class="pill"></span><span id="tbb" style="display:none;gap:6px"><button id="tra">+ Row</button><button id="tca">+ Col</button><button id="trd">- Row</button><button id="tcd">- Col</button><button id="tdl">Delete table</button></span><span id="imb" style="display:none;gap:6px"><button id="idp">Duplicate</button><button id="idl">Delete</button></span><span id="selb" style="display:none;gap:6px"><button id="sdup">Duplicate</button><button id="sdel">Delete</button></span>
   <span class="sp"></span>
   <span class="pill" id="pn"></span><button id="dp">Delete</button>
   <select id="tp"><option value="blank">Blank</option><option value="ruled">Ruled</option><option value="grid">Grid</option><option value="dot">Dot grid</option></select>
@@ -27,5 +27,5 @@
  </div>
  <div id="stage"><canvas id="cv"></canvas></div>
 </div>
-<div id="toast" role="status"></div>
+<input type="file" id="imf" accept="image/*" hidden><div id="toast" role="status"></div>
 <script src="js/app.js"></script></body></html>
