@@ -58,7 +58,7 @@ $('#ex').onclick=()=>{const c=document.createElement('canvas');c.width=PW*2;c.he
 function addPage(){const l=nb.pages[nb.pages.length-1];nb.pages.push({...pgObj(),tpl:l.tpl});hist=[];rdo=[];save();clampV();sy=Math.min(maxY(),(pTop(nb.pages.length-1)-12)*S);draw();toast('Page added.',1500)}
 function settle(){const m=maxY();if(sy>m+80)addPage();else if(sy>m){sy=m;draw()}}
 /* RENDER */
-function drawPage(c,pgo){const dk=db.paper=='dark';c.fillStyle=dk?'#1b1b21':'#fbfaf7';c.fillRect(0,0,PW,PH);
+function drawPage(c,pgo,o){const dk=db.paper=='dark';c.fillStyle=dk?'#1b1b21':'#fbfaf7';c.fillRect(0,0,PW,PH);if(pgo.bg&&!(o&&o.nobg)){const b=(o&&o.bgc)||bgGet(pgo.bg.id,pgo.bg.n);if(b){const k=Math.min(PW/b.width,PH/b.height),w=b.width*k,h=b.height*k;c.drawImage(b,(PW-w)/2,(PH-h)/2,w,h)}}
  c.strokeStyle=dk?'#34343f':'#d3d8e4';c.fillStyle=c.strokeStyle;c.lineWidth=1;const t=pgo.tpl;c.beginPath();
  if(t=='ruled')for(let y=96;y<PH-30;y+=32){c.moveTo(0,y);c.lineTo(PW,y)}
  if(t=='grid'){for(let y=24;y<PH;y+=24){c.moveTo(0,y);c.lineTo(PW,y)}for(let x=24;x<PW;x+=24){c.moveTo(x,0);c.lineTo(x,PH)}}
@@ -223,11 +223,14 @@ function renderPnl(){const tags=[...new Set(nb.pages.flatMap(p=>p.tags||[]))].so
  pnl.innerHTML=`<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Pages</b><button id="pcl">Close</button></div><select id="pfs"><option value="">All pages</option><option value="*bm">Bookmarked</option>${tags.map(t=>`<option value="${t}">#${t}</option>`).join('')}</select><div id="pls" style="overflow:auto;display:flex;flex-direction:column;gap:6px"></div>`;
  const fs=pnl.querySelector('#pfs'),L=pnl.querySelector('#pls');fs.value=pf;fs.onchange=()=>{pf=fs.value;renderPnl()};pnl.querySelector('#pcl').onclick=()=>pnl.style.display='none';let n=0;
  nb.pages.forEach((p,i)=>{if(pf=='*bm'?!p.bm:pf&&!(p.tags||[]).includes(pf))return;
-  const r=document.createElement('div');r.style.cssText='display:flex;gap:6px;align-items:stretch';
-  if(n++<80){const c=document.createElement('canvas');c.width=60;c.height=85;c.style.cssText='border:1px solid var(--bd);border-radius:4px;flex-shrink:0';const x=c.getContext('2d');x.scale(60/PW,85/PH);drawPage(x,p);r.appendChild(c)}
-  const b=document.createElement('button');b.style.cssText='flex:1;text-align:left';b.textContent=`${i+1}. ${p.title||'Untitled page'}${(p.tags||[]).length?'  '+p.tags.map(t=>'#'+t).join(' '):''}`;b.onclick=()=>{goPage(i);pnl.style.display='none'};
-  const s=document.createElement('button');s.textContent=p.bm?'★':'☆';s.setAttribute('aria-label','Toggle bookmark');s.onclick=()=>{p.bm=!p.bm;save();renderPnl();draw()};
-  const e=document.createElement('button');e.textContent='Edit';e.onclick=()=>editPage(i);r.append(b,s,e);L.appendChild(r)});
+  const r=document.createElement('div');r.style.cssText='display:flex;gap:8px;align-items:flex-start';
+  if(n++<80){const c=document.createElement('canvas');c.width=60;c.height=85;c.style.cssText='border:1px solid var(--bd);border-radius:4px;flex-shrink:0';const x=c.getContext('2d');x.scale(60/PW,85/PH);drawPage(x,p,{nobg:1});r.appendChild(c)}
+  const col=document.createElement('div');col.style.cssText='flex:1;display:flex;flex-direction:column;gap:5px;min-width:0';
+  const b=document.createElement('button');b.style.cssText='text-align:left;overflow:hidden;text-overflow:ellipsis';b.textContent=`${i+1}. ${p.title||'Untitled page'}${(p.tags||[]).length?'  '+p.tags.map(t=>'#'+t).join(' '):''}`;b.onclick=()=>{goPage(i);pnl.style.display='none'};
+  const r2=document.createElement('div');r2.style.cssText='display:flex;gap:5px';
+  const mk=(t,f,al)=>{const x=document.createElement('button');x.textContent=t;x.style.cssText='padding:3px 9px;min-height:34px;flex:1';x.setAttribute('aria-label',al||t);x.onclick=f;r2.appendChild(x)};
+  mk(p.bm?'★':'☆',()=>{p.bm=!p.bm;save();renderPnl();draw()},'Toggle bookmark');mk('Edit',()=>editPage(i));mk('▲',()=>mvPage(i,-1),'Move up');mk('▼',()=>mvPage(i,1),'Move down');mk('Copy',()=>dupPage(i),'Duplicate page');mk('+',()=>insPage(i),'Insert blank page after');
+  col.append(b,r2);r.appendChild(col);L.appendChild(r)});
  if(!L.children.length)L.innerHTML='<div class="empty" style="margin:0"><b>Nothing here</b>No pages match this filter.</div>'}
 $('#pgs').onclick=()=>{pf='';renderPnl();pnl.style.display='flex'};
 $('#tg').onclick=()=>editPage(curPg());
@@ -240,5 +243,40 @@ function search(q){const l=$('#list');l.innerHTML='';const R=[],tq=q.replace(/^#
  if(!R.length){l.innerHTML='<div class="empty"><b>No matches</b>Search covers notebook names, page titles, tags and typed text. Handwriting is not searchable.</div>';return}
  R.forEach(([n,i,w,p])=>{const c=document.createElement('div');c.className='card';c.style.cssText='min-height:0;margin-top:10px';c.innerHTML='<div><b></b><br><small></small></div>';c.querySelector('b').textContent=n.name+(w=='Notebook name'?'':' · page '+(i+1)+(p&&p.title?' · '+p.title:''));c.querySelector('small').textContent=w;c.onclick=()=>{open(n);goPage(i)};l.appendChild(c)})}
 $('#q').oninput=()=>{const v=$('#q').value.trim();if(v)search(v.toLowerCase());else home()};
+
+/* PDF IMPORT / ANNOTATE / EXPORT + PAGE MANAGEMENT */
+let PL=null,bgErr=false;const PD={},BG={},bgo=[];
+const pdfLib=()=>PL||(PL=import('./js/lib/pdf.min.js').then(m=>{m.GlobalWorkerOptions.workerSrc='./js/lib/pdf.worker.min.js';return m}));
+const idb=()=>new Promise((ok,no)=>{const r=indexedDB.open('aura',1);r.onupgradeneeded=()=>r.result.createObjectStore('pdf');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
+const idbPut=async(k,v)=>{const d=await idb();return new Promise((ok,no)=>{const t=d.transaction('pdf','readwrite');t.objectStore('pdf').put(v,k);t.oncomplete=ok;t.onerror=()=>no(t.error)})};
+const idbGet=async k=>{const d=await idb();return new Promise((ok,no)=>{const r=d.transaction('pdf').objectStore('pdf').get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)})};
+const getDoc=id=>PD[id]||(PD[id]=(async()=>{const buf=await idbGet(id);if(!buf)throw new Error('the PDF file is missing from this device');const m=await pdfLib();return m.getDocument({data:new Uint8Array(buf.slice(0))}).promise})());
+async function bgCanvas(id,n){const d=await getDoc(id),pg=await d.getPage(n),v0=pg.getViewport({scale:1}),v=pg.getViewport({scale:2*Math.min(PW/v0.width,PH/v0.height)}),c=document.createElement('canvas');c.width=Math.ceil(v.width);c.height=Math.ceil(v.height);await pg.render({canvasContext:c.getContext('2d'),viewport:v}).promise;return c}
+function bgGet(id,n){const k=id+':'+n;if(k in BG)return BG[k].c;BG[k]={c:null};bgCanvas(id,n).then(c=>{BG[k]={c};bgo.push(k);while(bgo.length>6)delete BG[bgo.shift()];draw()}).catch(err=>{if(!bgErr){bgErr=true;toast('A PDF page could not be displayed ('+(err&&err.message||'error')+'). Your annotations are safe.',7000)}});return null}
+$('#ipdf').onclick=()=>$('#pdfi').click();
+$('#pdfi').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;toast('Importing PDF…',60000);
+ try{const buf=await f.arrayBuffer(),m=await pdfLib(),d=await m.getDocument({data:new Uint8Array(buf.slice(0))}).promise,id=uid();await idbPut(id,buf);
+  const n={id:uid(),name:f.name.replace(/\.pdf$/i,''),pages:Array.from({length:d.numPages},(_,i)=>({...pgObj(),tpl:'blank',bg:{id,n:i+1}}))};db.nbs.unshift(n);save();toast('PDF imported: '+d.numPages+' pages.',3000);open(n)}
+ catch(err){toast('That PDF could not be imported ('+(err&&err.message||'unknown error')+'). Nothing was changed.',8000)}};
+function makePdf(P){const enc=new TextEncoder(),ch=[],off=[];let len=0;const put=b=>{const u=typeof b=='string'?enc.encode(b):b;ch.push(u);len+=u.length};
+ const obj=(n,fn)=>{off[n]=len;put(n+' 0 obj\n');fn();put('\nendobj\n')};
+ put('%PDF-1.4\n');const N=P.length,kids=P.map((_,i)=>(3+i*3)+' 0 R').join(' ');
+ obj(1,()=>put('<< /Type /Catalog /Pages 2 0 R >>'));obj(2,()=>put(`<< /Type /Pages /Count ${N} /Kids [${kids}] >>`));
+ P.forEach((p,i)=>{const a=3+i*3,c=a+1,im=a+2,cs='q 595 0 0 842 0 0 cm /Im0 Do Q';
+  obj(a,()=>put(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /XObject << /Im0 ${im} 0 R >> >> /Contents ${c} 0 R >>`));
+  obj(c,()=>put(`<< /Length ${cs.length} >>\nstream\n${cs}\nendstream`));
+  obj(im,()=>{put(`<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.b.length} >>\nstream\n`);put(p.b);put('\nendstream')})});
+ const xo=len,T=3+N*3;put(`xref\n0 ${T}\n0000000000 65535 f \n`);for(let n=1;n<T;n++)put(String(off[n]).padStart(10,'0')+' 00000 n \n');put(`trailer\n<< /Size ${T} /Root 1 0 R >>\nstartxref\n${xo}\n%%EOF`);return new Blob(ch,{type:'application/pdf'})}
+
+async function exportPdf(){toast('Building PDF…',60000);
+ try{const J=[];for(let i=0;i<nb.pages.length;i++){const p=nb.pages[i],c=document.createElement('canvas');c.width=PW*2;c.height=PH*2;const x=c.getContext('2d');x.scale(2,2);const bgc=p.bg?await bgCanvas(p.bg.id,p.bg.n):null;drawPage(x,p,{bgc,nobg:!bgc});
+  J.push({w:c.width,h:c.height,b:Uint8Array.from(atob(c.toDataURL('image/jpeg',.88).split(',')[1]),q=>q.charCodeAt(0))})}
+  dl(makePdf(J),nb.name+'.pdf');toast('PDF exported ('+J.length+' pages).',3000)}
+ catch(err){toast('PDF export failed ('+(err&&err.message||'error')+'). Your notes are safe and unchanged.',8000)}}
+$('#xp').onclick=exportPdf;
+const pgReset=()=>{hist=[];rdo=[];sel=tsel=isel=null;selUI();save();renderPnl();draw()};
+function mvPage(i,d){const j=i+d;if(j<0||j>=nb.pages.length)return;[nb.pages[i],nb.pages[j]]=[nb.pages[j],nb.pages[i]];pgReset()}
+function dupPage(i){const c=JSON.parse(JSON.stringify(nb.pages[i]));c.id=uid();nb.pages.splice(i+1,0,c);pgReset()}
+function insPage(i){const p=nb.pages[i];nb.pages.splice(i+1,0,{...pgObj(),tpl:p.bg?'blank':p.tpl});pgReset()}
 load();home();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
