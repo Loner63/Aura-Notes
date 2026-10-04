@@ -105,7 +105,7 @@ cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);
   if(touches.size==1){rmode=null;const p=W(e),n=[...INS].reverse().find(n=>n.on&&hitIns(n,p));if(n)rmode={t:'mv',id:e.pointerId,n,o:[p[0]-n.x,p[1]-n.y]}}
   else if(touches.size==2){const f=fing();if(rmode)rmode={t:'rot',n:rmode.n,a0:f.ang,ra:rmode.n.a};else{const b=cv.getBoundingClientRect();pinch={...f,z,w:[(f.cx-b.left-ox)/S,(f.cy-b.top+sy)/S]}}}
   return}
- penT=Date.now();hov=null;if(PX()&&e.pointerType=='pen'&&(e.buttons&34)&&tool!='eraser'&&tool!='area'){penPrev=tool;tool='eraser'}
+ penT=Date.now();hov=null;if(PX()&&isBtn(e)&&tool!='eraser'&&tool!='area'){penPrev=tool;tool='eraser'}
  const p=W(e),i=pageAt(p[1]);
  if(tool=='table'){tableDown(p,i);return}
  if(tool=='image'){imgDown(p,i);return}
@@ -121,7 +121,9 @@ cv.addEventListener('pointermove',e=>{
    if(rmode&&rmode.t=='rot'){const n=rmode.n,c=cen(n);n.a=rmode.ra+f.ang-rmode.a0;const c2=cen(n);n.x+=c[0]-c2[0];n.y+=c[1]-c2[1]}
    else if(pinch){const b=cv.getBoundingClientRect();z=Math.max(1,Math.min(2.5,pinch.z*f.d/pinch.d));S=Sc();sy=pinch.w[1]*S-(f.cy-b.top);ox=f.cx-b.left-pinch.w[0]*S}}
   draw();return}
- penT=e.pointerType=='pen'?Date.now():penT;if(PX()&&e.pointerType=='pen'&&!e.buttons&&!live&&!gest&&!loop&&!tb&&!ig&&!tg){hov=W(e);draw();return}
+ if(e.pointerType!='touch')penBtn=(e.buttons&34)?1:0;penT=e.pointerType=='pen'?Date.now():penT;
+ if(PX()&&live&&isBtn(e)&&tool!='eraser'&&tool!='area'&&!live.sh){live=null;penPrev=tool;tool='eraser';const p0=W(e);snap(pageAt(p0[1]));eraseAt=p0;erase(p0);return}
+ if(PX()&&e.pointerType=='pen'&&!e.buttons&&!live&&!gest&&!loop&&!tb&&!ig&&!tg){hov=W(e);draw();return}
  const p=W(e);
  if(tb){tbMove(p);return}
  if(ig){igMove(p);return}
@@ -132,7 +134,7 @@ cv.addEventListener('pointermove',e=>{
  if(live){const T=live.i;if(live.sh)live.p=sp(live.sh,live.a,[p[0],p[1]-pTop(T)]);else(e.getCoalescedEvents?e.getCoalescedEvents():[e]).forEach(ev=>{const w=W(ev),q=live.sn?proj(w,live.sn):w;live.p.push([q[0],q[1]-pTop(T),pr(ev),tl(ev)])});draw()}});
 function end(e){
  if(e.pointerType=='touch'){touches.delete(e.pointerId);if(touches.size==1){lock=true;pinch=null;if(rmode&&rmode.t=='rot')rmode=null}if(!touches.size){lock=false;rmode=null;pinch=null;settle()}return}
- if(penPrev){tool=penPrev;penPrev=null}
+ penBtn=(e.buttons&34)?1:0;if(penPrev){tool=penPrev;penPrev=null}
  if(tb){tbEnd();return}
  if(ig){igEnd();return}
  if(tg){textEnd();return}
@@ -355,6 +357,15 @@ const PX=()=>db.penx!==false,tl=e=>PX()&&e.pointerType=='pen'?Math.min(1,Math.hy
 function pxl(){$('#px').textContent='Pen extras: '+(PX()?'on':'off');$('#px').classList.toggle('on',PX())}
 $('#px').onclick=()=>{db.penx=!PX();save();pxl();hov=null;draw();toast(PX()?'Pen extras on: side button or eraser end erases, tilt shades with the pencil, a ring follows the hovering pen, and touches are ignored while the pen is near.':'Pen extras off.',5000)};
 cv.addEventListener('pointerleave',()=>{hov=null;draw()});
+
+/* PEN BUTTON DETECTION (broader) + CONTEXT MENU GUARD + PEN TEST PANEL */
+let penBtn=0;
+const isBtn=e=>(e.pointerType=='pen'||e.pointerType=='mouse')&&!!((e.buttons&34)||e.button==2||e.button==5||penBtn);
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+const dbg=document.createElement('pre');dbg.style.cssText='position:fixed;left:8px;bottom:8px;z-index:9;margin:0;padding:8px 10px;background:var(--el);border:1px solid var(--bd);border-radius:8px;font:12px/1.4 monospace;display:none;pointer-events:none;max-width:90vw;white-space:pre-wrap';document.body.appendChild(dbg);
+const dlog=e=>{if(dbg.style.display=='none')return;dbg.textContent=`${e.type}\ntype: ${e.pointerType}   button: ${e.button}   buttons: ${e.buttons}\npressure: ${(+e.pressure).toFixed(2)}   tilt: ${e.tiltX||0}/${e.tiltY||0}\nbutton-held flag: ${penBtn}   tool: ${tool}`};
+['pointerdown','pointermove','pointerup','pointercancel','contextmenu'].forEach(t=>cv.addEventListener(t,dlog,true));
+$('#pt').onclick=()=>{const on=dbg.style.display=='none';dbg.style.display=on?'block':'none';$('#pt').classList.toggle('on',on);if(on)dbg.textContent='Hold the pen button, then hover over or touch the page. This box shows what the tablet reports.'};
 
 init();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
