@@ -7,13 +7,13 @@
 <div id="home" class="sr show">
  <div class="brand"><svg width="30" height="30" viewBox="0 0 32 32" fill="none"><ellipse cx="16" cy="16" rx="14" ry="6" transform="rotate(-24 16 16)" stroke="#a78bfa" stroke-width="1.4" opacity=".7"/><path d="M8 25 16 6l8 19M11.5 18h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>AURA NOTES</div>
  <h1 id="greet">Good evening.</h1><p class="sub">Write without limits.</p>
- <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="pri" id="newNb">+ New notebook</button><button id="bk">Backup</button><button id="ipdf">Import PDF</button><button id="rs">Restore</button><button id="thm">Theme</button><input type="file" id="pdfi" accept="application/pdf" hidden><input type="file" id="rsf" accept=".json" hidden></div><input id="q" type="search" placeholder="Search notebooks, pages, typed text, tags" aria-label="Search" style="margin-top:18px;width:100%;max-width:520px;background:var(--el);border:1px solid var(--bd);border-radius:var(--r);padding:11px 14px;min-height:44px">
+ <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="pri" id="newNb">+ New notebook</button><button id="bk">Backup</button><button id="shb">Tag sheet</button><button id="ab">Auto backup</button><button id="ipdf">Import PDF</button><button id="rs">Restore</button><button id="thm">Theme</button><input type="file" id="pdfi" accept="application/pdf" hidden><input type="file" id="rsf" accept=".json" hidden></div><input id="q" type="search" placeholder="Search notebooks, pages, typed text, tags" aria-label="Search" style="margin-top:18px;width:100%;max-width:520px;background:var(--el);border:1px solid var(--bd);border-radius:var(--r);padding:11px 14px;min-height:44px">
  <div class="lab">NOTEBOOKS</div><div id="list"></div><div id="su" class="pill" style="margin-top:28px"></div>
 </div>
 <div id="ed" class="sr">
  <div class="bar">
   <button id="back">Back</button><button id="nm" style="max-width:180px;overflow:hidden;text-overflow:ellipsis"></button><span class="sp"></span>
-  <button data-t="pen">Pen</button><button data-t="pencil">Pencil</button><button data-t="marker">Marker</button><button data-t="highlighter">Highlighter</button><button data-t="eraser">Eraser</button><button data-t="area">Area eraser</button><button data-t="lasso">Lasso</button><button data-t="text">Text</button><button data-t="table">Table</button><button data-t="image">Image</button><button id="rl">Ruler</button><button id="pr">Protractor</button><button id="sq">Set square</button><button data-t="line">Line</button><button data-t="rect">Rect</button><button data-t="ellipse">Ellipse</button><button data-t="triangle">Triangle</button>
+  <button data-t="pen">Pen</button><button data-t="pencil">Pencil</button><button data-t="marker">Marker</button><button data-t="highlighter">Highlighter</button><button data-t="eraser">Eraser</button><button data-t="area">Area eraser</button><button data-t="lasso">Lasso</button><button data-t="text">Text</button><button data-t="cover">Cover</button><button data-t="link">Link</button><button data-t="table">Table</button><button data-t="image">Image</button><button id="rl">Ruler</button><button id="pr">Protractor</button><button id="sq">Set square</button><button data-t="line">Line</button><button data-t="rect">Rect</button><button data-t="ellipse">Ellipse</button><button data-t="triangle">Triangle</button>
   <span class="sp"></span><button id="fm">Focus</button><button id="un">Undo</button><button id="re">Redo</button>
  </div>
  <div class="opt" id="opt">
@@ -23,7 +23,7 @@
   <span class="sp"></span>
   <button id="bm">Bookmark</button><button id="tg">Tags</button><button id="pgs">Pages</button><span class="pill" id="pn"></span><button id="dp">Delete</button>
   <button id="psz">Page size</button><select id="tp"><option value="blank">Blank</option><option value="ruled">Ruled</option><option value="grid">Grid</option><option value="dot">Dot grid</option><option value="cornell">Cornell</option><option value="graph">Graph paper</option><option value="math">Mathematics</option><option value="check">Checklist</option></select>
-  <button id="pt">Pen test</button><button id="px">Pen extras</button><button id="pp">Paper</button><button id="fit">Fit</button><button id="ex">Export PNG</button><button id="xp">Export PDF</button>
+  <button id="pt">Pen test</button><button id="cvall">Covers</button><button id="grf">Graph</button><button id="rpl">Replay</button><button id="spl">Split</button><button id="lkt">Lock tools</button><button id="cus">Customise</button><button id="px">Pen extras</button><button id="pp">Paper</button><button id="fit">Fit</button><button id="ex">Export PNG</button><button id="xp">Export PDF</button>
  </div>
  <div id="stage"><canvas id="cv"></canvas></div>
 </div>
