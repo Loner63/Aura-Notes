@@ -29,6 +29,9 @@ jobs:
         run: |
           mkdir -p android/app/src/main/java/com/loner63/auranotes
           cp native/*.java android/app/src/main/java/com/loner63/auranotes/
+      - name: Allow microphone
+        run: |
+          sed -i 's#</manifest>#    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
       - name: Build debug APK
         run: |
           cd android
