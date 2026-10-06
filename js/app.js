@@ -10,7 +10,7 @@ async function init(){let mig=false;
  try{const d=await idb();db=await new Promise((ok,no)=>{const r=d.transaction('data').objectStore('data').get('db');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
   if(!db){const raw=localStorage.getItem('aura');if(raw){db=JSON.parse(raw);mig=true}}}
  catch(e){noSave=true;toast('Saved data could not be read. Autosave is paused so nothing is overwritten. Use Restore with a backup.',9000)}
- db=db||{nbs:[],theme:'dark',paper:'light'};theme();home();stor();abl();autoBackup();if(mig){save();toast('Your notes were moved to larger storage.',3500)}}
+ db=db||{nbs:[],theme:'dark',paper:'light'};theme();home();stor();abl();autoBackup();purgeBin();tour();if(mig){save();toast('Your notes were moved to larger storage.',3500)}}
 function save(){clearTimeout(saveT);saveT=setTimeout(async()=>{if(noSave)return;try{const d=await idb();await new Promise((ok,no)=>{const t=d.transaction('data','readwrite');t.objectStore('data').put(db,'db');t.oncomplete=ok;t.onerror=()=>no(t.error);t.onabort=()=>no(t.error)})}catch(e){toast('Could not save ('+(e&&e.message||'storage error')+'). Your notes are still open here. Tap Backup to export them now.',8000)}},300)}
 function stor(){if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(e=>{$('#su').textContent=`Storage used: ${(e.usage/1048576).toFixed(1)} MB of ${(e.quota/1048576).toFixed(0)} MB available`}).catch(()=>{})}
 function theme(){document.documentElement.dataset.theme=db.theme}
@@ -20,12 +20,13 @@ function home(){const q0=$('#q').value.trim();if(q0){$('#home').classList.add('s
  const l=$('#list');l.innerHTML='';
  if(!db.nbs.length){l.innerHTML='<div class="empty"><b>No notebooks yet</b>Your workspace is ready. Create your first notebook.</div>';return}
  const g=document.createElement('div'),g2=document.createElement('div');g.className=g2.className='grid';
- db.nbs.forEach(n=>{const c=document.createElement('div');c.className='card';c.innerHTML=`<div><b></b><br><small>${n.pages.length} page${n.pages.length>1?'s':''}${n.secs>=60?' · '+fmtT(n.secs):''}</small></div><div class="row"><button data-a="ren">Rename</button><button data-a="dup">Duplicate</button><button data-a="del">Delete</button></div>`;
-  c.querySelector('b').textContent=n.name;
+ [...db.nbs].sort((a,b)=>(b.pin?1:0)-(a.pin?1:0)||(b.at||0)-(a.at||0)).forEach(n=>{const c=document.createElement('div');c.className='card';c.innerHTML=`<div><b></b><br><small>${n.pages.length} page${n.pages.length>1?'s':''}${n.secs>=60?' · '+fmtT(n.secs):''}</small></div><div class="row" style="flex-wrap:wrap"><button data-a="pin">${n.pin?'Unpin':'Pin'}</button><button data-a="col">Colour</button><button data-a="ren">Rename</button><button data-a="dup">Duplicate</button><button data-a="del">Delete</button></div>`;
+  c.querySelector('b').textContent=(n.pin?'\u2605 ':'')+n.name;if(n.col)c.style.borderLeft='4px solid '+n.col;
   c.onclick=e=>{const a=e.target.dataset.a;if(!a)return open(n);
    if(a=='ren'){const v=prompt('Rename notebook',n.name);if(v&&v.trim()){n.name=v.trim();save();home()}}
+   if(a=='pin'){n.pin=!n.pin;save();home();return}if(a=='col'){const C=['','#a78bfa','#34c38f','#f5b942','#e5576b','#4aa3ff'];n.col=C[(C.indexOf(n.col||'')+1)%C.length];save();home();return}
    if(a=='dup'){const d=JSON.parse(JSON.stringify(n));d.id=uid();d.name+=' copy';d.pages.forEach(p=>p.id=uid());db.nbs.push(d);save();home()}
-   if(a=='del'&&confirm(`Delete "${n.name}" and all its pages? This cannot be undone.`)){db.nbs=db.nbs.filter(x=>x!==n);save();home();gcPdf();gcAudio()}};
+   if(a=='del'&&confirm(`Delete "${n.name}" and all its pages? This cannot be undone.`)){(db.bin=db.bin||[]).push({id:uid(),at:Date.now(),kind:'nb',nb:n});db.nbs=db.nbs.filter(x=>x!==n);save();home();toast('Moved to Recently deleted. You can restore it for 30 days.',4000)}};
   (n.pages.some(p=>p.bg)?g2:g).appendChild(c)});l.appendChild(g);if(g2.children.length){const lb=document.createElement('div');lb.className='lab';lb.textContent='DOCUMENTS';l.appendChild(lb);l.appendChild(g2)}}
 $('#newNb').onclick=()=>{const v=prompt('Notebook name','New notebook');if(!v)return;const n={id:uid(),name:v.trim()||'Untitled',pages:[pgObj()]};db.nbs.unshift(n);save();open(n)};
 $('#thm').onclick=()=>{db.theme=db.theme=='dark'?'light':'dark';theme();save()};
@@ -40,7 +41,7 @@ const Sc=()=>Math.max(cv.clientWidth,1)/PW*z,pTop=i=>12+i*(PH+GAP),totH=()=>pTop
 function clampV(soft){S=Sc();const pw=PW*S,cw=cv.clientWidth;ox=pw<=cw+1?(cw-pw)/2:Math.max(cw-pw,Math.min(0,ox));sy=Math.max(0,Math.min(maxY()+(soft?160:0),sy))}
 const pageAt=y=>Math.max(0,Math.min(nb.pages.length-1,Math.floor((y-12+GAP/2)/(PH+GAP)))),curPg=()=>pageAt((sy+cv.clientHeight/2)/S);
 const W=(e,b=cv.getBoundingClientRect())=>[(e.clientX-b.left-ox)/S,(e.clientY-b.top+sy)/S];
-function open(n){fl=null;pxl();rrec();lab();applyHide();nb=n;PW=n.size?n.size.w:794;PH=n.size?n.size.h:1123;$('#home').classList.remove('show');$('#ed').classList.add('show');$('#nm').textContent=n.name;INS.forEach(n=>n.on=false);['#rl','#pr','#sq','#cmp'].forEach(q=>$(q).classList.remove('on'));z=1;sy=0;hist=[];rdo=[];$('#pp').textContent='Paper: '+db.paper;setTool('pen');sizeCv()}
+function open(n){n.at=Date.now();fl=null;pxl();rrec();lab();applyHide();nb=n;PW=n.size?n.size.w:794;PH=n.size?n.size.h:1123;$('#home').classList.remove('show');$('#ed').classList.add('show');$('#nm').textContent=n.name;INS.forEach(n=>n.on=false);['#rl','#pr','#sq','#cmp'].forEach(q=>$(q).classList.remove('on'));z=1;sy=0;hist=[];rdo=[];$('#pp').textContent='Paper: '+db.paper;setTool('pen');sizeCv()}
 function sizeCv(){const d=devicePixelRatio||1;cv.width=cv.clientWidth*d;cv.height=cv.clientHeight*d;clampV();draw()}
 function setTool(t){prevT=tool;tool=t;if(t!='lasso')sel=null;if(t!='table')tsel=null;if(t!='image')isel=null;selUI();document.querySelectorAll('[data-t]').forEach(b=>b.classList.toggle('on',b.dataset.t==t));$('#cols').parentElement.style.opacity=(t=='eraser'||t=='area')?.4:1;draw()}
 document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>setTool(b.dataset.t));
@@ -56,7 +57,7 @@ function snap(i){hist.push(st(i));if(hist.length>200)hist.shift();rdo=[]}
 function undo(){sel=tsel=isel=null;selUI();const h=hist.pop();if(!h)return;rdo.push(st(h.i));rs(h);save();draw()}
 function redo(){sel=tsel=isel=null;selUI();const h=rdo.pop();if(!h)return;hist.push(st(h.i));rs(h);save();draw()}
 addEventListener('keydown',e=>{if(!$('#ed').classList.contains('show'))return;if((e.ctrlKey||e.metaKey)&&e.key=='z'){e.preventDefault();e.shiftKey?redo():undo()}});
-$('#dp').onclick=()=>{if(nb.pages.length<2)return toast('A notebook needs at least one page.');if(!confirm('Delete this page and its handwriting?'))return;nb.pages.splice(curPg(),1);sel=tsel=isel=null;selUI();hist=[];rdo=[];save();draw()};
+$('#dp').onclick=()=>{if(nb.pages.length<2)return toast('A notebook needs at least one page.');if(!confirm('Delete this page and its handwriting?'))return;const ix_=curPg();(db.bin=db.bin||[]).push({id:uid(),at:Date.now(),kind:'page',nbId:nb.id,name:nb.name,page:nb.pages[ix_]});nb.pages.splice(ix_,1);sel=tsel=isel=null;selUI();hist=[];rdo=[];save();draw()};
 $('#tp').onchange=e=>{nb.pages[curPg()].tpl=e.target.value;save();draw()};
 $('#pp').onclick=()=>{db.paper=db.paper=='light'?'dark':'light';$('#pp').textContent='Paper: '+db.paper;save();draw()};
 $('#ex').onclick=()=>{const c=document.createElement('canvas');c.width=PW*2;c.height=PH*2;const x=c.getContext('2d');x.scale(2,2);drawPage(x,nb.pages[curPg()]);c.toBlob(b=>{dl(b,nb.name+'-page'+(curPg()+1)+'.png')})};
@@ -297,8 +298,8 @@ function makePdf(P){const enc=new TextEncoder(),ch=[],off=[];let len=0;const put
   obj(im,()=>{put(`<< /Type /XObject /Subtype /Image /Width ${p.w} /Height ${p.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${p.b.length} >>\nstream\n`);put(p.b);put('\nendstream')})});
  const xo=len,T=3+N*3;put(`xref\n0 ${T}\n0000000000 65535 f \n`);for(let n=1;n<T;n++)put(String(off[n]).padStart(10,'0')+' 00000 n \n');put(`trailer\n<< /Size ${T} /Root 1 0 R >>\nstartxref\n${xo}\n%%EOF`);return new Blob(ch,{type:'application/pdf'})}
 
-async function exportPdf(){toast('Building PDF…',60000);
- try{const J=[];for(let i=0;i<nb.pages.length;i++){const p=nb.pages[i],c=document.createElement('canvas');c.width=PW*2;c.height=PH*2;const x=c.getContext('2d');x.scale(2,2);const bgc=p.bg?await bgCanvas(p.bg.id,p.bg.n):null;drawPage(x,p,{bgc,nobg:!bgc});
+async function exportPdf(){const rv=prompt('Pages to export, for example 1-3, 5. Leave empty for all pages.','');if(rv===null)return;const IX=rv.trim()?parseRange(rv,nb.pages.length):nb.pages.map((_,k)=>k);if(!IX.length)return toast('No valid page numbers. Nothing was exported.',3500);toast('Building PDF\u2026',60000);
+ try{const J=[];for(const i of IX){const p=nb.pages[i],c=document.createElement('canvas');c.width=PW*2;c.height=PH*2;const x=c.getContext('2d');x.scale(2,2);const bgc=p.bg?await bgCanvas(p.bg.id,p.bg.n):null;drawPage(x,p,{bgc,nobg:!bgc});
   J.push({w:c.width,h:c.height,b:Uint8Array.from(atob(c.toDataURL('image/jpeg',.88).split(',')[1]),q=>q.charCodeAt(0))})}
   dl(makePdf(J),nb.name+'.pdf')}
  catch(err){toast('PDF export failed ('+(err&&err.message||'error')+'). Your notes are safe and unchanged.',8000)}}
@@ -308,7 +309,7 @@ function mvPage(i,d){const j=i+d;if(j<0||j>=nb.pages.length)return;[nb.pages[i],
 function dupPage(i){const c=JSON.parse(JSON.stringify(nb.pages[i]));c.id=uid();nb.pages.splice(i+1,0,c);pgReset()}
 function insPage(i){const p=nb.pages[i];nb.pages.splice(i+1,0,{...pgObj(),tpl:p.bg?'blank':p.tpl});pgReset()}
 /* STORAGE GC + TABLE/IMAGE UPGRADES + AREA ERASER + EXTRACT/MERGE */
-async function gcPdf(){try{const used=new Set(db.nbs.flatMap(n=>n.pages.filter(p=>p.bg).map(p=>p.bg.id))),d=await idb(),keys=await new Promise((ok,no)=>{const r=d.transaction('pdf').objectStore('pdf').getAllKeys();r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}),dead=keys.filter(k=>!used.has(k));
+async function gcPdf(){try{const used=new Set(allNbs().flatMap(n=>n.pages.filter(p=>p.bg).map(p=>p.bg.id))),d=await idb(),keys=await new Promise((ok,no)=>{const r=d.transaction('pdf').objectStore('pdf').getAllKeys();r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)}),dead=keys.filter(k=>!used.has(k));
  if(dead.length)await new Promise((ok,no)=>{const t=d.transaction('pdf','readwrite');dead.forEach(k=>t.objectStore('pdf').delete(k));t.oncomplete=ok;t.onerror=()=>no(t.error)})}catch(e){}}
 let opac=1;$('#op').oninput=e=>opac=e.target.value/100;
 function eraseArea(p){const i=pageAt(p[1]),q=[p[0],p[1]-pTop(i)],g=nb.pages[i],out=[],hitp=(a,s)=>Math.hypot(a[0]-q[0],a[1]-q[1])<14+s.w/2;
@@ -442,8 +443,8 @@ async function autoBackup(){try{if(!isNat()||db.auto===false||!db.nbs.length||Da
  catch(e){toast('Automatic backup failed ('+(e&&e.message||'error')+'). Your notes are safe. Use Backup to save a copy.',6000)}}
 const abl=()=>{$('#ab').textContent='Auto backup: '+(db.auto===false?'off':'on')};
 $('#ab').onclick=()=>{db.auto=db.auto===false;save();abl();toast(db.auto===false?'Automatic backup off.':'Automatic backup on: a copy is saved to Downloads every 3 days.',4000)};
-function applyHide(){const h=db.hide||[];[...$('#ed .bar').querySelectorAll('button')].forEach(b=>{if(b.id=='back'||b.id=='nm')return;b.style.display=h.includes(b.textContent)?'none':''})}
-$('#cus').onclick=()=>{const bs=[...$('#ed .bar').querySelectorAll('button')].filter(b=>b.id!='back'&&b.id!='nm'),o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
+function applyHide(){const h=db.hide||[];[...$('#ed .bar').querySelectorAll('button')].forEach(b=>{if(b.id=='back'||b.id=='nm'||b.classList.contains('gt'))return;b.style.display=h.includes(b.textContent)?'none':''})}
+$('#cus').onclick=()=>{const bs=[...$('#ed .bar').querySelectorAll('button')].filter(b=>b.id!='back'&&b.id!='nm'&&!b.classList.contains('gt')),o=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';
  const c=document.createElement('div');c.style.cssText='background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:18px;max-width:420px;width:100%;max-height:85vh;overflow:auto;display:flex;flex-direction:column;gap:8px';c.innerHTML='<b>Customise toolbar</b><div class="pill" style="white-space:normal">Untick the tools you do not use. Bring them back here any time.</div>';
  bs.forEach(b=>{const l=document.createElement('label'),k=document.createElement('input');l.style.cssText='display:flex;gap:10px;align-items:center;min-height:40px';k.type='checkbox';k.checked=b.style.display!='none';k.onchange=()=>{const h=new Set(db.hide||[]);if(k.checked)h.delete(b.textContent);else h.add(b.textContent);db.hide=[...h];save();applyHide()};l.append(k,document.createTextNode(b.textContent));c.appendChild(l)});
  const x=document.createElement('button');x.textContent='Done';x.className='pri';x.onclick=()=>o.remove();c.appendChild(x);o.appendChild(c);document.body.appendChild(o)};
@@ -463,7 +464,7 @@ $('#spl').onclick=()=>{rfOn=!rfOn;$('#spl').classList.toggle('on',rfOn);rfh.styl
 let mr=null,rch=[],rt=0,rlive=null,rEr=false;
 async function idbS(store,mode,fn){const d=await idb();return new Promise((ok,no)=>{const t=d.transaction(store,mode),r=fn(t.objectStore(store));t.oncomplete=()=>ok(r&&r.result);t.onerror=()=>no(t.error)})}
 const idbPutS=(s,k,v)=>idbS(s,'readwrite',o=>o.put(v,k)),idbGetS=(s,k)=>idbS(s,'readonly',o=>o.get(k)),idbDelS=(s,k)=>idbS(s,'readwrite',o=>o.delete(k));
-async function gcAudio(){try{const used=new Set(db.nbs.flatMap(n=>(n.recs||[]).map(r=>r.id))),keys=await idbS('audio','readonly',o=>o.getAllKeys());for(const k of keys)if(!used.has(k))await idbDelS('audio',k)}catch(e){}}
+async function gcAudio(){try{const used=new Set(allNbs().flatMap(n=>(n.recs||[]).map(r=>r.id))),keys=await idbS('audio','readonly',o=>o.getAllKeys());for(const k of keys)if(!used.has(k))await idbDelS('audio',k)}catch(e){}}
 const fmtD=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
 $('#rec').onclick=async()=>{if(mr){mr.stop();return}
  try{const st=await navigator.mediaDevices.getUserMedia({audio:true}),mt=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(t=>window.MediaRecorder&&MediaRecorder.isTypeSupported(t))||'',m=new MediaRecorder(st,mt?{mimeType:mt}:{});mr=m;rch=[];rt=Date.now();const pg0=curPg()+1,n0=nb;
@@ -495,6 +496,32 @@ rc.onpointerdown=e=>{if(rc.setPointerCapture)rc.setPointerCapture(e.pointerId);i
 rc.onpointermove=e=>{if(e.pointerType=='touch'){if(ry==null)return;rf.sy-=e.clientY-ry;ry=e.clientY;rfDraw();return}
  if(rEr){rErase(e);return}if(rlive){rlive.p.push([...rloc(e,rlive.i,rlive.n),pr(e),tl(e)]);rfDraw()}};
 rc.onpointerup=rc.onpointercancel=()=>{ry=null;rEr=false;if(rlive){const s=rlive;rlive=null;if(s.p.length)s.n.pages[s.i].strokes.push({t:s.t,c:s.c,w:s.w,op:s.op,p:s.p});save();rfDraw()}else save()};
+
+/* V4: recently deleted, grouped menus, PDF page range, first-run tour */
+const allNbs=()=>[...db.nbs,...(db.bin||[]).map(b=>b.kind=='nb'?b.nb:{pages:[b.page],recs:[]})];
+function purgeBin(){const n0=(db.bin||[]).length;db.bin=(db.bin||[]).filter(b=>Date.now()-b.at<30*864e5);if(db.bin.length!=n0){save();gcPdf();gcAudio()}}
+function overlay(){const o=document.createElement('div'),c=document.createElement('div');o.style.cssText='position:fixed;inset:0;z-index:20;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px';c.style.cssText='background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:18px;max-width:460px;width:100%;max-height:85vh;overflow:auto;display:flex;flex-direction:column;gap:8px';o.appendChild(c);document.body.appendChild(o);return{o,c}}
+function showBin(){const{o,c}=overlay(),B=db.bin||[];c.innerHTML='<b>Recently deleted</b><div class="pill" style="white-space:normal">Items stay here for 30 days, then are removed for good.</div>';
+ if(!B.length)c.insertAdjacentHTML('beforeend','<div class="pill" style="white-space:normal;color:var(--tx)">Nothing here.</div>');
+ B.forEach(b=>{const row=document.createElement('div'),t=document.createElement('span');row.style.cssText='display:flex;gap:6px;align-items:center;flex-wrap:wrap';t.className='pill';t.style.cssText='flex:1;white-space:normal;color:var(--tx)';
+  t.textContent=(b.kind=='nb'?'Notebook: '+b.nb.name:'Page from "'+b.name+'"')+' · '+Math.max(1,30-Math.floor((Date.now()-b.at)/864e5))+' days left';row.appendChild(t);
+  const mk=(l,f)=>{const x=document.createElement('button');x.textContent=l;x.style.cssText='padding:4px 10px;min-height:36px';x.onclick=()=>{f();save();o.remove();home()};row.appendChild(x)};
+  mk('Restore',()=>{db.bin=db.bin.filter(x=>x!==b);if(b.kind=='nb')db.nbs.unshift(b.nb);else{let n=db.nbs.find(x=>x.id==b.nbId);if(!n){n={id:uid(),name:b.name+' (restored)',pages:[]};db.nbs.unshift(n)}n.pages.push(b.page)}toast('Restored.',2500)});
+  mk('Delete forever',()=>{if(!confirm('Delete this for good? This cannot be undone.'))return;db.bin=db.bin.filter(x=>x!==b);gcPdf();gcAudio()});c.appendChild(row)});
+ const x=document.createElement('button');x.textContent='Close';x.className='pri';x.onclick=()=>o.remove();c.appendChild(x)}
+$('#bin').onclick=showBin;
+function tour(){if(db.tour)return;db.tour=true;save();if(db.nbs.length)return;const{o,c}=overlay();c.innerHTML='<b style="font-size:18px">Welcome to Aura Notes</b>'+['The pen writes. A finger scrolls the pages, and a quick swipe keeps them gliding.','Tools live in the menus on the top bar. Tap a menu name to see what is inside.','Pages opens thumbnails, tags and bookmarks. Search on the home screen finds typed text and tags.','Deleted notebooks and pages wait in Recently deleted for 30 days. Use Backup or automatic backup to keep a copy of everything.'].map(t=>'<div class="pill" style="white-space:normal;color:var(--tx)">\u2022 '+t+'</div>').join('');const x=document.createElement('button');x.textContent='Got it';x.className='pri';x.onclick=()=>o.remove();c.appendChild(x)}
+function mkGroup(barSel,label,sels,dyn){const bar=$(barSel),kids=sels.map(s=>bar.querySelector(s)).filter(Boolean);if(!kids.length)return;const wrap=document.createElement('span'),tg=document.createElement('button'),pop=document.createElement('div');wrap.style.cssText='flex-shrink:0';bar.insertBefore(wrap,kids[0]);pop.className='menu-pop';tg.className='gt';
+ pop.style.cssText='position:fixed;display:none;flex-direction:column;gap:4px;padding:6px;background:var(--sf);border:1px solid var(--bd);border-radius:12px;z-index:15;max-height:70vh;overflow:auto';kids.forEach(k=>{k.style.textAlign='left';pop.appendChild(k)});wrap.append(tg,pop);
+ const upd=()=>{const a=dyn&&kids.find(k=>k.classList.contains('on'));tg.textContent=(a?a.textContent:label)+' \u25be';tg.classList.toggle('on',!!a)};upd();if(dyn)kids.forEach(k=>new MutationObserver(upd).observe(k,{attributes:true,attributeFilter:['class']}));
+ tg.onclick=e=>{e.stopPropagation();const was=pop.style.display=='flex';document.querySelectorAll('.menu-pop').forEach(p=>p.style.display='none');if(!was){const r=tg.getBoundingClientRect();pop.style.left=Math.max(4,Math.min(r.left,innerWidth-180))+'px';pop.style.top=(r.bottom+4)+'px';pop.style.display='flex'}};pop.addEventListener('click',()=>{pop.style.display='none'})}
+addEventListener('click',()=>document.querySelectorAll('.menu-pop').forEach(p=>p.style.display='none'));
+mkGroup('#ed .bar','Pens',['[data-t=pen]','[data-t=pencil]','[data-t=marker]','[data-t=highlighter]'],1);
+mkGroup('#ed .bar','Erasers',['[data-t=eraser]','[data-t=area]'],1);
+mkGroup('#ed .bar','Shapes',['[data-t=line]','[data-t=rect]','[data-t=ellipse]','[data-t=triangle]'],1);
+mkGroup('#ed .bar','Insert',['[data-t=text]','[data-t=table]','[data-t=image]','[data-t=link]','[data-t=cover]'],1);
+mkGroup('#ed .bar','Instruments',['#rl','#pr','#sq','#cmp'],1);
+mkGroup('#opt','Page',['#pgs','#bm','#tg','#psz','#pp']);mkGroup('#opt','Export',['#ex','#xp']);mkGroup('#opt','Study',['#rec','#aud','#rpl','#cvall','#grf','#spl']);mkGroup('#opt','More',['#lkt','#cus','#px','#pt']);
 
 init();
 if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(()=>{});
