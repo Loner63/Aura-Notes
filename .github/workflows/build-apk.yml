@@ -32,6 +32,11 @@ jobs:
       - name: Allow microphone
         run: |
           sed -i 's#</manifest>#    <uses-permission android:name="android.permission.RECORD_AUDIO" />\n    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />\n</manifest>#' android/app/src/main/AndroidManifest.xml
+      - name: Use fixed signing key and version
+        run: |
+          mkdir -p ~/.android
+          cp native/debug.keystore ~/.android/debug.keystore
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/" android/app/build.gradle
       - name: Build debug APK
         run: |
           cd android
