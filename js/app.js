@@ -10,7 +10,7 @@ async function init(){let mig=false;
  try{const d=await idb();db=await new Promise((ok,no)=>{const r=d.transaction('data').objectStore('data').get('db');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error)});
   if(!db){const raw=localStorage.getItem('aura');if(raw){db=JSON.parse(raw);mig=true}}}
  catch(e){noSave=true;toast('Saved data could not be read. Autosave is paused so nothing is overwritten. Use Restore with a backup.',9000)}
- db=db||{nbs:[],theme:'dark',paper:'light'};theme();home();stor();abl();autoBackup();purgeBin();tour();if(mig){save();toast('Your notes were moved to larger storage.',3500)}}
+ db=db||{nbs:[],theme:'dark',paper:'light'};theme();home();stor();abl();anl();autoBackup();purgeBin();tour();if(mig){save();toast('Your notes were moved to larger storage.',3500)}}
 async function saveNow(){clearTimeout(saveT);if(noSave)return false;try{const d=await idb();await new Promise((ok,no)=>{const t=d.transaction('data','readwrite');t.objectStore('data').put(db,'db');t.oncomplete=ok;t.onerror=()=>no(t.error);t.onabort=()=>no(t.error)});return true}catch(e){toast('Could not save ('+(e&&e.message||'storage error')+'). Your notes are still open here. Tap Backup to export them now.',8000);return false}}
 function save(){clearTimeout(saveT);saveT=setTimeout(saveNow,300)}
 function stor(){if(navigator.storage&&navigator.storage.estimate)navigator.storage.estimate().then(e=>{$('#su').textContent=`Storage used: ${(e.usage/1048576).toFixed(1)} MB of ${(e.quota/1048576).toFixed(0)} MB available`}).catch(()=>{})}
@@ -84,7 +84,7 @@ $('#dp').onclick=()=>{if(phys&&pcur<0)return toast('Turn to a page first.',2500)
 $('#tp').onchange=e=>{nb.pages[curPg()].tpl=e.target.value;save();draw()};
 $('#pp').onclick=()=>{db.paper=db.paper=='light'?'dark':'light';$('#pp').textContent='Paper: '+db.paper;save();draw()};
 $('#ex').onclick=()=>{const c=document.createElement('canvas');c.width=PW*3;c.height=PH*3;const x=c.getContext('2d');x.scale(3,3);drawPage(x,nb.pages[curPg()]);c.toBlob(b=>{dl(b,nb.name+'-page'+(curPg()+1)+'.png')})};
-function addPage(){const l=nb.pages[nb.pages.length-1];nb.pages.push({...pgObj(),tpl:l.tpl});hist=[];rdo=[];save();clampV();sy=Math.min(maxY(),(pTop(nb.pages.length-1)-12)*S);draw();toast('Page added.',1500)}
+function addPage(){const l=nb.pages[nb.pages.length-1];nb.pages.push({...pgObj(),tpl:l.tpl});hist=[];rdo=[];save();clampV();animSy(Math.min(maxY(),(pTop(nb.pages.length-1)-12)*S));toast('Page added.',1500)}
 function settle(){if(phys)return;const m=maxY();if(sy>m+80)addPage();else if(sy>m){sy=m;draw()}}
 /* RENDER */
 function drawPage(c,pgo,o){const dk=db.paper=='dark';c.fillStyle=dk?'#1b1b21':'#fbfaf7';c.fillRect(0,0,PW,PH);if(pgo.bg&&!(o&&o.nobg)){const b=(o&&o.bgc)||bgGet(pgo.bg.id,pgo.bg.n);if(b){const k=Math.min(PW/b.width,PH/b.height),w=b.width*k,h=b.height*k;c.drawImage(b,(PW-w)/2,(PH-h)/2,w,h)}}
@@ -130,11 +130,11 @@ const pr=e=>e.pointerType=='pen'&&e.pressure>0?e.pressure:.5;
 const fing=()=>{const a=[...touches.values()];return{d:Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1])||1,ang:Math.atan2(a[1][1]-a[0][1],a[1][0]-a[0][0]),cx:(a[0][0]+a[1][0])/2,cy:(a[0][1]+a[1][1])/2}};
 const sp=(t,a,b)=>{let r;const[x,y]=a,[u,v]=b;if(t=='line')r=[a,b];else if(t=='rect')r=[a,[u,y],b,[x,v],a];else if(t=='triangle')r=[[(x+u)/2,y],b,[x,v],[(x+u)/2,y]];else{r=[];for(let k=0;k<=48;k++){const g=k/48*6.2832;r.push([(x+u)/2+Math.cos(g)*(u-x)/2,(y+v)/2+Math.sin(g)*(v-y)/2])}}return r.map(q=>[q[0],q[1],.5])};
 cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);
- if(e.pointerType=='touch'){fl=null;if(PX()&&Date.now()-penT<700)return;touches.set(e.pointerId,[e.clientX,e.clientY]);
+ if(e.pointerType=='touch'){fl=null;sAnim=null;if(PX()&&Date.now()-penT<700)return;touches.set(e.pointerId,[e.clientX,e.clientY]);
   if(touches.size==1){scrolling=false;vx=vy=0;lastT=performance.now();rmode=null;pt=phys?{id:e.pointerId,x:e.clientX,y:e.clientY,on:false,lx:e.clientX,ly:e.clientY,lt:e.timeStamp,v:0}:null;const p=W(e),n=ilock?null:[...INS].reverse().find(n=>n.on&&hitIns(n,p));if(n)rmode=(n===comp&&Math.hypot(p[0]-comp.x-Math.cos(comp.a)*comp.R,p[1]-comp.y-Math.sin(comp.a)*comp.R)<48)?{t:'tip',id:e.pointerId,n}:{t:'mv',id:e.pointerId,n,o:[p[0]-n.x,p[1]-n.y]}}
   else if(touches.size==2){if(!turn)pt=null;const f=fing();if(rmode)rmode={t:'rot',n:rmode.n,a0:f.ang,ra:rmode.n.a};else{const b=cv.getBoundingClientRect();pinch={...f,z,w:[(f.cx-b.left-ox)/S,(f.cy-b.top+sy)/S]}}}
   return}
- penT=Date.now();hov=null;fl=null;if(turn||(phys&&pcur<0))return;if(PX()&&isBtn(e)&&tool!='eraser'&&tool!='area'){penPrev=tool;tool='eraser'}
+ penT=Date.now();hov=null;fl=null;sAnim=null;if(turn||(phys&&pcur<0))return;if(PX()&&isBtn(e)&&tool!='eraser'&&tool!='area'){penPrev=tool;tool='eraser'}
  const p=W(e),i=pageAt(p[1]);
  if(tool=='cover'){coverDown(p,i);return}
  if(tool=='link'){linkDown(p,i);return}
@@ -177,7 +177,7 @@ function end(e){
  if(eraseAt){eraseAt=null;save();draw()}
  clearTimeout(snapT);if(live){const s=live;live=null;snap(s.i);nb.pages[s.i].strokes.push({t:s.t,c:s.c,w:s.w,op:s.op,p:s.p});save();draw()}}
 cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
-cv.addEventListener('wheel',e=>{e.preventDefault();if(phys){if(Math.abs(e.deltaX)>Math.abs(e.deltaY))wheelTurn(e.deltaX);else{sy+=e.deltaY;draw()}return}if(e.ctrlKey){const b=cv.getBoundingClientRect(),wx=(e.clientX-b.left-ox)/S,wy=(e.clientY-b.top+sy)/S;z=Math.max(1,Math.min(2.5,z*(e.deltaY<0?1.1:.91)));S=Sc();sy=wy*S-(e.clientY-b.top);ox=e.clientX-b.left-wx*S}else{sy+=e.deltaY;ox-=e.deltaX}draw();clearTimeout(wt);wt=setTimeout(settle,220)},{passive:false});
+cv.addEventListener('wheel',e=>{e.preventDefault();sAnim=null;if(phys){if(Math.abs(e.deltaX)>Math.abs(e.deltaY))wheelTurn(e.deltaX);else{sy+=e.deltaY;draw()}return}if(e.ctrlKey){const b=cv.getBoundingClientRect(),wx=(e.clientX-b.left-ox)/S,wy=(e.clientY-b.top+sy)/S;z=Math.max(1,Math.min(2.5,z*(e.deltaY<0?1.1:.91)));S=Sc();sy=wy*S-(e.clientY-b.top);ox=e.clientX-b.left-wx*S}else{sy+=e.deltaY;ox-=e.deltaX}draw();clearTimeout(wt);wt=setTimeout(settle,220)},{passive:false});
 function erase(p){const i=pageAt(p[1]),q=[p[0],p[1]-pTop(i)],pg_=nb.pages[i];pg_.strokes=pg_.strokes.filter(s=>!hit(s,q,er()+s.w/2));pg_.masks=(pg_.masks||[]).filter(m=>!(q[0]>=m.x&&q[0]<=m.x+m.w&&q[1]>=m.y&&q[1]<=m.y+m.h));pg_.links=(pg_.links||[]).filter(l=>Math.abs(q[0]-l.x)>22||Math.abs(q[1]-l.y)>14);draw()}
 function hit(s,p,r){const q=s.p;if(q.length==1)return Math.hypot(q[0][0]-p[0],q[0][1]-p[1])<r;
  for(let i=1;i<q.length;i++){const[x1,y1]=q[i-1],[x2,y2]=q[i],dx=x2-x1,dy=y2-y1,l=dx*dx+dy*dy||1,t=Math.max(0,Math.min(1,((p[0]-x1)*dx+(p[1]-y1)*dy)/l));if(Math.hypot(x1+t*dx-p[0],y1+t*dy-p[1])<r)return true}return false}
@@ -271,7 +271,7 @@ $('#imf').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;
 /* TAGS + BOOKMARKS + SEARCH + PAGE PANEL */
 let pf='';
 const pnl=document.createElement('div');pnl.style.cssText='position:fixed;top:0;right:0;bottom:0;width:min(360px,92vw);background:var(--sf);border-left:1px solid var(--bd);z-index:8;display:none;flex-direction:column;padding:12px;gap:8px;overflow:hidden;padding-top:max(12px,env(safe-area-inset-top))';document.body.appendChild(pnl);
-function goPage(i){fl=null;if(phys){physGo(i);return}clampV();sy=Math.min(maxY(),(pTop(i)-12)*S);draw()}
+function goPage(i){fl=null;if(phys){physGo(i);return}clampV();animSy(Math.min(maxY(),(pTop(i)-12)*S))}
 function editPage(i){const p=nb.pages[i],t=prompt('Page title',p.title||'');if(t===null)return;const g=prompt('Tags, comma separated (e.g. EXAM, FORMULA, REVISION)',(p.tags||[]).join(', '));p.title=t.trim();if(g!==null)p.tags=[...new Set(g.split(',').map(x=>x.trim().replace(/^#/,'').toUpperCase().replace(/[^A-Z0-9_-]/g,'')).filter(Boolean))];save();renderPnl()}
 function renderPnl(){const tags=[...new Set(nb.pages.flatMap(p=>p.tags||[]))].sort();
  pnl.innerHTML=`<div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Pages</b><button id="pex">Extract</button><button id="pmg">Merge</button><button id="pcl">Close</button></div><select id="pfs"><option value="">All pages</option><option value="*bm">Bookmarked</option>${tags.map(t=>`<option value="${t}">#${t}</option>`).join('')}</select><div id="pls" style="overflow:auto;display:flex;flex-direction:column;gap:6px"></div>`;
@@ -732,6 +732,26 @@ async function editLog(kind,C,r){const m=kind=='m',f=[{key:'subject',label:'Subj
  const v=await form('Edit entry',f,'Save changes');if(!v)return;r.subject=v.subject||r.subject;r.note=v.note;if(m){r.correction=v.correction;r.explanation=v.explanation}r.status=v.status;save();showLog(kind)}
 async function openRef(r){const n=db.nbs.find(x=>x.id==r.nbId),j=n?n.pages.findIndex(p=>p.id==r.pageId):-1;if(j<0){await ask('Original page not found','The notebook or page this entry came from has been deleted. The saved snapshot stays in the log.',['OK']);return}lg.classList.remove('show');open(n);goPage(j)}
 $('#mlg').onclick=()=>showLog('m');$('#ull').onclick=()=>showLog('u');
+
+/* V8: subtle interface animations */
+(function(){const st=document.createElement('style'),dl_=[30,55,80,105,130,155,180].map((v,i)=>`.grid .card:nth-child(${i+2}){animation-delay:${v}ms}`).join('');
+ st.textContent=`@keyframes ovIn{from{opacity:0}to{opacity:1}}@keyframes ovcIn{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes popIn{from{opacity:0;transform:translateY(-6px) scale(.98)}to{opacity:1;transform:none}}@keyframes cardIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes srIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}@keyframes slideIn{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes barIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+@keyframes onRing{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--ac) 50%,transparent)}100%{box-shadow:0 0 0 7px transparent}}
+.ov-in{animation:ovIn .18s ease-out}.ov-in>*{animation:ovcIn .22s cubic-bezier(.2,.8,.2,1)}.menu-pop{animation:popIn .14s ease-out}
+.grid .card,#logs>div{animation:cardIn .26s ease-out backwards}${dl_}.sr.show{animation:srIn .22s ease-out}.pnl{animation:slideIn .2s ease-out}.pbar{animation:barIn .22s ease-out}
+button.on:not(.sw){animation:onRing .35s ease-out}#toast{transform:translate(-50%,8px);transition:opacity .2s,transform .2s}#toast.show{transform:translate(-50%,0)}
+.noanim *{animation:none!important;transition:none!important}@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}`;document.head.appendChild(st)})();
+new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.nodeType==1&&n.style&&n.style.zIndex=='20')n.classList.add('ov-in')}))).observe(document.body,{childList:true});
+pnl.classList.add('pnl');pbar.classList.add('pbar');
+let sAnim=null;
+function animSy(to){sAnim=null;fl=null;const f=sy,d=to-f;if(reduced()||db.anim===false||Math.abs(d)<2){sy=to;draw();return}const t0=performance.now(),ms=Math.min(450,180+Math.abs(d)/6),me={};sAnim=me;
+ (function st(n){if(sAnim!==me)return;const k=Math.min(1,(n-t0)/ms),e=1-Math.pow(1-k,3);sy=f+d*e;draw();if(k<1)requestAnimationFrame(st);else sAnim=null})(t0)}
+const anb=document.createElement('button');anb.id='anm';$('#px').parentElement.appendChild(anb);
+const anl=()=>{anb.textContent='Animations: '+(db.anim===false?'off':'on');document.documentElement.classList.toggle('noanim',db.anim===false)};
+anb.onclick=()=>{db.anim=db.anim===false;save();anl();toast(db.anim===false?'Interface animations off.':'Interface animations on. They are also switched off automatically if your device asks for reduced motion.',3500)};
 
 async function sizeMigrate(n){if(nb!==n)return;n.sizeAsked=true;save();const out=n.pages.some(p=>p.strokes.some(s=>s.p.some(q=>q[0]>794))||(p.texts||[]).some(t=>t.x>794)||(p.tables||[]).some(t=>t.x>794)||(p.images||[]).some(m=>m.x+m.w>794));
  const r=await ask('Page size','This physical notebook uses a screen-shaped page, which makes your writing look smaller.\n\nSwitch to the normal page size? You scroll down the page and swipe sideways to turn it.'+(out?'\n\nSome of your content sits to the right of the normal page. It will be hidden, not deleted, and comes back if you switch again under Physical notebook settings.':''),['Switch to normal page','Keep screen-shaped']);
